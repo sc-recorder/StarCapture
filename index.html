@@ -1,0 +1,2002 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StarCapture</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+    <div class="app-container">
+        <!-- Header Bar -->
+        <header class="header">
+            <!-- Logo on the left -->
+            <div class="logo">
+                <img src="images/logo-optimized.gif" alt="StarCapture" class="logo-img" loading="eager">
+                <span>StarCapture</span>
+            </div>
+
+            <!-- Event Display (center) -->
+            <div class="current-event-display" id="current-event-display" style="display: none;">
+                <div class="event-details">
+                    <span class="event-timestamp" id="current-event-time">00:00:00</span>
+                    <span class="event-name" id="current-event-name">--</span>
+                    <span class="event-message" id="current-event-message">--</span>
+                </div>
+            </div>
+
+            <!-- Notification Container -->
+            <div id="notification-container" class="notification-container"></div>
+
+            <!-- Status Card (Compact) -->
+            <div class="status-card-compact">
+                <div class="status-icon-section">
+                    <span class="status-icon" id="recording-status">IDLE</span>
+                </div>
+                <div class="status-divider"></div>
+                <div class="status-info-section">
+                    <div class="status-line">
+                        <span class="status-group">
+                            <span id="obs-status" class="status-label-compact">OBS</span>
+                            <span class="status-divider-small"></span>
+                            <span id="websocket-status" class="status-label-compact">WS</span>
+                        </span>
+                        <span class="status-group">
+                            <span id="sc-status" class="status-label-compact">SC</span>
+                            <span class="status-divider-small"></span>
+                            <span id="sc-log-status" class="status-label-compact">Log</span>
+                        </span>
+                    </div>
+                    <div class="status-line">
+                        <span id="supervisor-status" class="supervisor-status-text">Supervisor</span>
+                        <span id="sc-instance" class="status-instance-text">--</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Window Controls (for frameless window) -->
+            <div class="window-controls">
+                <button class="window-control" id="minimize-btn" title="Minimize">
+                    <svg width="10" height="1" viewBox="0 0 10 1">
+                        <rect width="10" height="1" fill="currentColor"/>
+                    </svg>
+                </button>
+                <button class="window-control" id="maximize-btn" title="Maximize">
+                    <svg width="10" height="10" viewBox="0 0 10 10">
+                        <rect width="10" height="10" stroke="currentColor" fill="none" stroke-width="1"/>
+                    </svg>
+                </button>
+                <button class="window-control window-close" id="close-btn" title="Close">
+                    <svg width="10" height="10" viewBox="0 0 10 10">
+                        <path d="M0 0 L10 10 M10 0 L0 10" stroke="currentColor" stroke-width="1"/>
+                    </svg>
+                </button>
+            </div>
+        </header>
+
+        <!-- Main Content Area -->
+        <div class="main-content">
+            <!-- Side Navigation -->
+            <nav class="side-nav">
+                <button class="nav-button active" data-view="recording">
+                    <span class="nav-icon">●</span>
+                    <span class="nav-label">Recording</span>
+                </button>
+                <div class="nav-item-container">
+                    <div class="nav-section-header">
+                        <span class="nav-icon">🎬</span>
+                        <span class="nav-label">Post</span>
+                    </div>
+                    <div class="nav-subnav">
+                        <button class="nav-sub-button" data-subview="playback">
+                            <span class="nav-sub-icon">▶</span>
+                            <span class="nav-sub-label">Playback & Review</span>
+                        </button>
+                        <button class="nav-sub-button" data-subview="filter-editor">
+                            <span class="nav-sub-icon">🔧</span>
+                            <span class="nav-sub-label">Filter Editor</span>
+                        </button>
+                        <button class="nav-sub-button" data-subview="upload">
+                            <span class="nav-sub-icon">☁</span>
+                            <span class="nav-sub-label">Uploads</span>
+                        </button>
+                        <button class="nav-sub-button" data-subview="edit-video">
+                            <span class="nav-sub-icon">✂</span>
+                            <span class="nav-sub-label">Edit Video</span>
+                        </button>
+                    </div>
+                </div>
+                <!-- New Settings Section -->
+                <div class="nav-item-container">
+                    <div class="nav-section-header">
+                        <span class="nav-icon">⚙</span>
+                        <span class="nav-label">Settings</span>
+                    </div>
+                    <div class="nav-subnav">
+                        <button class="nav-sub-button" data-subview="general-settings">
+                            <span class="nav-sub-icon">⚙</span>
+                            <span class="nav-sub-label">General</span>
+                        </button>
+                        <button class="nav-sub-button" data-subview="capture-settings">
+                            <span class="nav-sub-icon">🎥</span>
+                            <span class="nav-sub-label">Capture</span>
+                        </button>
+                        <button class="nav-sub-button" data-subview="online-accounts">
+                            <span class="nav-sub-icon">☁</span>
+                            <span class="nav-sub-label">Online Accounts</span>
+                        </button>
+                        <button class="nav-sub-button" data-subview="advanced-settings">
+                            <span class="nav-sub-icon">🔧</span>
+                            <span class="nav-sub-label">Advanced</span>
+                        </button>
+                    </div>
+                </div>
+            </nav>
+
+            <!-- View Container -->
+            <main class="view-container">
+                <!-- Recording View -->
+                <div id="recording-view" class="view" style="display: none;">
+                    <div class="recording-container-split">
+                        <!-- Left Column: Controls and Stats -->
+                        <div class="recording-left-panel">
+                            <!-- Recording Controls -->
+                            <div class="recording-card compact">
+                                <h3>Recording Control</h3>
+                                <div class="recording-controls">
+                                    <button id="record-button" class="record-btn" disabled>
+                                        <span class="record-icon">●</span>
+                                        <span class="record-text">Start Recording</span>
+                                    </button>
+                                    <button id="stream-button" class="btn btn-secondary" disabled title="Coming soon - Stream to Twitch">
+                                        <span>📡</span> Stream
+                                    </button>
+                                    <button id="split-recording-btn" class="btn btn-secondary" disabled title="Start recording to a new file without stopping">
+                                        <span>✂️</span> Split Recording
+                                    </button>
+                                    <button id="mark-event-btn" class="btn btn-secondary" disabled title="Mark a manual event at current timestamp">
+                                        <span>🔖</span> Mark Event
+                                    </button>
+                                    <button id="save-current-recording-btn" class="btn btn-success" disabled title="Move recording to saved folder">
+                                        <span>💾</span> Save Recording
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Recording Stats -->
+                            <div class="recording-card compact" id="recording-stats">
+                                <div class="recording-header">
+                                    <h3>Recording Statistics</h3>
+                                    <button id="open-folder-btn" class="btn btn-secondary btn-sm"
+                                        title="Open Recording Folder">
+                                        <span>📁</span>
+                                    </button>
+                                </div>
+                                <div class="stats-grid-compact">
+                                    <div class="stat-item">
+                                        <span class="stat-label">Duration:</span>
+                                        <span class="stat-value" id="rec-duration">--:--:--</span>
+                                    </div>
+                                    <div class="stat-item">
+                                        <span class="stat-label">Size:</span>
+                                        <span class="stat-value" id="rec-size">--</span>
+                                    </div>
+                                    <div class="stat-item">
+                                        <span class="stat-label">Bitrate:</span>
+                                        <span class="stat-value" id="rec-bitrate">--</span>
+                                    </div>
+                                    <div class="stat-item">
+                                        <span class="stat-label">FPS:</span>
+                                        <span class="stat-value" id="rec-fps">--</span>
+                                    </div>
+                                    <div class="stat-item">
+                                        <span class="stat-label">Events:</span>
+                                        <span class="stat-value" id="event-count">0</span>
+                                    </div>
+                                    <div class="stat-item">
+                                        <span class="stat-label">Last:</span>
+                                        <span class="stat-value" id="last-event-time">--</span>
+                                    </div>
+                                    <div class="stat-item full-width">
+                                        <span class="stat-label">File:</span>
+                                        <span class="stat-value" id="rec-filename" title="Click to see full path">--</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Right Column: Events List -->
+                        <div class="recording-right-panel">
+                            <div class="recording-card events-panel" id="event-list-card">
+                                <div class="recording-header">
+                                    <h3>Captured Events</h3>
+                                    <span class="event-counter" id="event-list-counter">0 events</span>
+                                </div>
+                                <div id="event-list" class="event-list-full">
+                                    <!-- Events will be added here dynamically -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Post Processing View -->
+                <div id="post-view" class="view" style="display: none;">
+                    <div class="post-header">
+                        <div class="post-controls">
+                            <button id="browse-recordings-btn" class="btn btn-primary">Browse Recordings</button>
+                            <button id="load-video-btn" class="btn btn-secondary">Manual Load Video</button>
+                            <button id="load-events-btn" class="btn btn-secondary">Manual Load Events</button>
+                            <button id="save-recording-btn" class="btn btn-success" disabled title="Move current recording to saved folder">
+                                <span>💾</span> Save Recording
+                            </button>
+                            <button id="export-clips-btn" class="btn btn-secondary" disabled>Export Clips</button>
+                            <button id="upload-video-btn" class="btn btn-success" disabled title="Upload video to cloud storage">
+                                <span>☁️</span> Upload
+                            </button>
+                            <button id="save-filtered-btn" class="btn btn-primary" disabled>Export Filtered
+                                Events</button>
+                        </div>
+                    </div>
+
+                    <!-- Save Filtered Events Dialog -->
+                    <div id="save-filtered-dialog" class="modal" style="display: none;">
+                        <div class="modal-content compact">
+                            <div class="modal-header">
+                                <h3>Export Filtered Events</h3>
+                                <button class="modal-close"
+                                    onclick="document.getElementById('save-filtered-dialog').style.display='none'">&times;</button>
+                            </div>
+                            <div class="modal-body">
+                                <div class="dialog-info">
+                                    <p><strong>Events to export:</strong> <span id="filtered-count">0</span> of <span
+                                            id="total-count">0</span> events</p>
+                                    <p><strong>Active filters:</strong> <span id="active-filters-summary">None</span>
+                                    </p>
+                                </div>
+                                <div class="dialog-warning">
+                                    <p>📝 This will create a new JSON file containing only the filtered events.</p>
+                                    <p>✅ The file will maintain the same format and can be re-loaded for further
+                                        processing.</p>
+                                    <p>💾 Original files will not be modified.</p>
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button class="btn btn-secondary"
+                                    onclick="document.getElementById('save-filtered-dialog').style.display='none'">Cancel</button>
+                                <button class="btn btn-primary"
+                                    onclick="window.postController.confirmSaveFilteredEvents()">Export Events</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Filter Template Name Dialog -->
+                    <div id="template-name-dialog" class="modal" style="display: none;">
+                        <div class="modal-content compact">
+                            <div class="modal-header">
+                                <h3>Save Filter Template</h3>
+                                <button class="modal-close"
+                                    onclick="document.getElementById('template-name-dialog').style.display='none'">&times;</button>
+                            </div>
+                            <div class="modal-body">
+                                <p>Enter a name for this filter template:</p>
+                                <input type="text" id="template-name-input" class="form-control"
+                                    placeholder="Template name..." />
+                                <div class="template-preview" id="template-preview">
+                                    <!-- Preview will be populated here -->
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button class="btn btn-secondary"
+                                    onclick="document.getElementById('template-name-dialog').style.display='none'">Cancel</button>
+                                <button class="btn btn-primary"
+                                    onclick="window.postController.confirmSaveTemplate()">Save Template</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Generic Alert Dialog -->
+                    <div id="alert-dialog" class="modal" style="display: none;">
+                        <div class="modal-content compact">
+                            <div class="modal-header">
+                                <h3 id="alert-title">Alert</h3>
+                                <button class="modal-close"
+                                    onclick="window.postController.closeAlert()">&times;</button>
+                            </div>
+                            <div class="modal-body">
+                                <div id="alert-message"></div>
+                            </div>
+                            <div class="modal-footer">
+                                <button class="btn btn-primary" onclick="window.postController.closeAlert()">OK</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Custom Event Dialog -->
+                    <div id="custom-event-dialog" class="modal" style="display: none;">
+                        <div class="modal-content custom-event-modal">
+                            <div class="modal-header">
+                                <h3>Insert Custom Event</h3>
+                                <button class="modal-close" onclick="window.postController.closeCustomEventDialog()">&times;</button>
+                            </div>
+                            <div class="modal-body">
+                                <div class="event-form-card">
+                                    <div class="setting-group">
+                                        <div class="setting-item">
+                                            <label class="setting-label">Video Time</label>
+                                            <div class="setting-input">
+                                                <input type="text" id="event-time" class="form-control" placeholder="00:00:00.000" />
+                                                <small class="setting-description">Time in the video where this event occurs</small>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="setting-group">
+                                        <div class="setting-item">
+                                            <label class="setting-label">Event Type</label>
+                                            <div class="setting-input">
+                                                <select id="event-type" class="form-control">
+                                                    <option value="manual" selected>Manual</option>
+                                                    <option value="combat">Combat</option>
+                                                    <option value="location">Location</option>
+                                                    <option value="mission">Mission</option>
+                                                    <option value="system">System</option>
+                                                    <option value="vehicle">Vehicle</option>
+                                                    <option value="player">Player</option>
+                                                </select>
+                                            </div>
+                                        </div>
+
+                                        <div class="setting-item">
+                                            <label class="setting-label">Subtype</label>
+                                            <div class="setting-input">
+                                                <input type="text" id="event-subtype" class="form-control" placeholder="e.g., user_marked" value="user_marked" />
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="setting-group">
+                                        <div class="setting-item">
+                                            <label class="setting-label">Event Name</label>
+                                            <div class="setting-input">
+                                                <input type="text" id="event-name" class="form-control" placeholder="e.g., Manual Event" value="Manual Event" />
+                                                <small class="setting-description">A short, descriptive name for this event</small>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="setting-group">
+                                        <div class="setting-item">
+                                            <label class="setting-label">Description</label>
+                                            <div class="setting-input">
+                                                <textarea id="event-message" class="form-control" rows="4" placeholder="User marked event - click to edit description"></textarea>
+                                                <small class="setting-description">Detailed description of what happened</small>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="setting-group">
+                                        <div class="setting-item">
+                                            <label class="setting-label">Severity</label>
+                                            <div class="setting-input">
+                                                <select id="event-severity" class="form-control">
+                                                    <option value="low">Low</option>
+                                                    <option value="medium" selected>Medium</option>
+                                                    <option value="high">High</option>
+                                                    <option value="critical">Critical</option>
+                                                </select>
+                                                <small class="setting-description">Importance level of this event</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button class="btn btn-secondary" onclick="window.postController.closeCustomEventDialog()">Cancel</button>
+                                <button class="btn btn-primary" onclick="window.postController.insertCustomEvent()">Insert Event</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Generic Confirm Dialog -->
+                    <div id="confirm-dialog" class="modal" style="display: none;">
+                        <div class="modal-content compact">
+                            <div class="modal-header">
+                                <h3 id="confirm-title">Confirm</h3>
+                                <button class="modal-close"
+                                    onclick="window.postController.cancelConfirm()">&times;</button>
+                            </div>
+                            <div class="modal-body">
+                                <div id="confirm-message"></div>
+                            </div>
+                            <div class="modal-footer">
+                                <button class="btn btn-secondary"
+                                    onclick="window.postController.cancelConfirm()">Cancel</button>
+                                <button id="confirm-ok-btn" class="btn btn-primary">OK</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Delete Template Confirm Dialog -->
+                    <div id="delete-template-dialog" class="modal" style="display: none;">
+                        <div class="modal-content compact">
+                            <div class="modal-header">
+                                <h3>Delete Filter Template</h3>
+                                <button class="modal-close"
+                                    onclick="document.getElementById('delete-template-dialog').style.display='none'">&times;</button>
+                            </div>
+                            <div class="modal-body">
+                                <div class="dialog-warning">
+                                    <p>⚠️ Are you sure you want to delete this template?</p>
+                                    <p><strong id="delete-template-name"></strong></p>
+                                    <p class="text-xs text-muted">This action cannot be undone.</p>
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button id="delete-template-cancel-btn" class="btn btn-secondary">Cancel</button>
+                                <button id="delete-template-confirm-btn" class="btn btn-danger">Delete</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Video Browser Modal -->
+                    <div id="video-browser-modal" class="modal" style="display: none;">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h3>Available Recordings</h3>
+                                <button class="modal-close" id="close-browser-btn">&times;</button>
+                            </div>
+                            <div class="modal-body">
+                                <div class="browser-controls">
+                                    <button id="refresh-browser-btn" class="btn btn-sm">🔄 Refresh</button>
+                                    <span class="browser-path" id="browser-path">--</span>
+                                </div>
+                                <div class="video-list" id="video-list">
+                                    <!-- Video items will be populated here -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="post-container">
+                        <!-- Video Player Section -->
+                        <div class="video-section">
+                            <div class="video-player-wrapper">
+                                <video id="video-player" controls>
+                                    <source src="" type="video/mp4">
+                                    Your browser does not support the video tag.
+                                </video>
+                                <div class="video-overlay" id="video-overlay">
+                                    <div class="overlay-message">Click "Load Video" to select a recording</div>
+                                </div>
+                            </div>
+
+                            <!-- Event Filters -->
+                            <div class="event-filters">
+                                <div class="filter-columns">
+                                    <!-- Exclude Filters Section -->
+                                    <div class="filter-section exclude-section">
+                                        <div class="filter-header">
+                                            <h4>🚫 Hide These Events <small>(Applied First)</small></h4>
+                                            <button id="add-exclude-btn" class="btn btn-sm btn-secondary">+ Add
+                                                Exclude</button>
+                                        </div>
+
+                                        <div class="quick-excludes" id="quick-excludes">
+                                            <!-- Quick exclude buttons will be added based on loaded data -->
+                                        </div>
+
+                                        <div class="filter-list exclude-list" id="exclude-list">
+                                            <!-- Exclude filter rows will be added here -->
+                                        </div>
+                                    </div>
+
+                                    <!-- Include Filters Section -->
+                                    <div class="filter-section include-section">
+                                        <div class="filter-header">
+                                            <h4>✅ Show Only These <small>(Optional)</small></h4>
+                                            <button id="add-include-btn" class="btn btn-sm btn-primary">+ Add
+                                                Include</button>
+                                        </div>
+
+                                        <div class="filter-list include-list" id="include-list">
+                                            <!-- Include filter groups will be added here -->
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Filter Actions -->
+                                <div class="filter-actions-bar">
+                                    <button id="apply-filters-btn" class="btn btn-sm btn-success">Apply Filters</button>
+                                    <button id="clear-filters-btn" class="btn btn-sm btn-secondary">Clear All</button>
+                                    <div class="filter-template-controls">
+                                        <button id="save-template-btn" class="btn btn-sm btn-secondary"
+                                            title="Save current filters as template">💾 Save Template</button>
+                                        <select id="filter-templates" class="filter-template-select">
+                                            <option value="">Load Template...</option>
+                                        </select>
+                                        <button id="delete-template-btn" class="btn btn-sm btn-danger"
+                                            title="Delete selected template">🗑️</button>
+                                    </div>
+                                    <div class="filter-stats">
+                                        <small id="filter-stats-text">No filters active</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Timeline Section -->
+                        <div class="timeline-section">
+                            <div class="timeline-header">
+                                <h3>Event Timeline</h3>
+                                <div class="flex-gap-10" style="align-items: center;">
+                                    <span class="timeline-count" id="timeline-count">0 events</span>
+                                    <button id="insert-event-btn" class="btn-icon" disabled title="Insert Custom Event">
+                                        <span class="icon-size-20">+</span>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="timeline-container" id="timeline-container">
+                                <div class="timeline-track" id="timeline-track">
+                                    <!-- Timeline markers will be added here -->
+                                </div>
+
+                                <div class="timeline-events" id="timeline-events">
+                                    <!-- Event list will be added here -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Filter Editor View -->
+                <div id="filter-editor-view" class="view" style="display: none;">
+                    <div class="filter-editor-header">
+                        <h2>🎛️ Filter Template Editor</h2>
+                        <p class="text-muted" style="margin: 5px 0;">Create and manage filter templates for use during
+                            playback and review</p>
+                    </div>
+
+                    <div class="filter-editor-container">
+                        <!-- Template Management Bar -->
+                        <div class="filter-template-bar"
+                            class="bg-overlay-dark" style="padding: 12px; border-radius: 8px; margin-bottom: 16px;">
+                            <div class="flex-gap-12" style="align-items: center;">
+                                <div style="flex: 1;">
+                                    <label
+                                        class="template-name-label">Template
+                                        Name:</label>
+                                    <input type="text" id="editor-template-name" class="form-control"
+                                        placeholder="Enter template name..." class="w-full">
+                                </div>
+                                <div class="flex-gap-8" style="align-items: flex-end;">
+                                    <select id="editor-template-select" class="template-select"
+                                        class="setting-control min-w-200">
+                                        <option value="">Load Template...</option>
+                                    </select>
+                                    <button id="editor-save-btn" class="btn btn-sm btn-success">💾 Save</button>
+                                    <button id="editor-delete-btn" class="btn btn-sm btn-danger" disabled>🗑️
+                                        Delete</button>
+                                    <button id="editor-clear-btn" class="btn btn-sm btn-secondary">Clear All</button>
+                                </div>
+                            </div>
+
+                            <div class="mt-10 border-top-separator" style="padding-top: 10px;">
+                                <label class="checkbox-container" style="cursor: pointer;">
+                                    <input type="checkbox" id="editor-default-filter" style="width: auto;">
+                                    <span>Use as default filter for recording notifications</span>
+                                    <span class="label-optional">
+                                        (Only affects notification display, all events are captured)
+                                    </span>
+                                </label>
+                                <div class="flex-gap-8" style="margin-top: 8px;">
+                                    <button id="editor-export-btn" class="btn btn-sm btn-secondary">📤 Export
+                                        Templates</button>
+                                    <button id="editor-import-btn" class="btn btn-sm btn-secondary">📥 Import
+                                        Templates</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Filter Columns -->
+                        <div class="filter-columns">
+                            <!-- Exclude Filters Section -->
+                            <div class="filter-section exclude-section">
+                                <div class="filter-header">
+                                    <h4>🚫 Hide These Events <small>(Applied First)</small></h4>
+                                    <button id="editor-add-exclude" class="btn btn-sm btn-secondary">+ Add
+                                        Exclude</button>
+                                </div>
+
+                                <div class="filter-list exclude-list" id="editor-exclude-list">
+                                    <!-- Exclude filter rows will be added here -->
+                                </div>
+                            </div>
+
+                            <!-- Include Filters Section -->
+                            <div class="filter-section include-section">
+                                <div class="filter-header">
+                                    <h4>✅ Show Only These <small>(Optional)</small></h4>
+                                    <button id="editor-add-include" class="btn btn-sm btn-primary">+ Add
+                                        Include</button>
+                                </div>
+
+                                <div class="filter-list include-list" id="editor-include-list">
+                                    <!-- Include filter rows will be added here -->
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Filter Summary -->
+                        <div class="filter-summary"
+                            class="bg-overlay-dark" style="margin-top: 16px; padding: 12px; border-radius: 8px;">
+                            <div class="flex-space-between">
+                                <div>
+                                    <span class="text-xs text-muted">Filter Summary:</span>
+                                    <span id="editor-filter-count" style="margin-left: 8px;">No filters
+                                        configured</span>
+                                </div>
+                                <div id="editor-save-status" class="text-success text-xs" style="display: none;">
+                                    ✓ Template saved
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Template Delete Confirmation Modal -->
+                    <div id="template-delete-modal" class="modal" style="display: none;">
+                        <div class="modal-content modal-content-compact">
+                            <div class="modal-header">
+                                <h3>Confirm Template Deletion</h3>
+                            </div>
+                            <div class="modal-body">
+                                <p id="template-delete-message"></p>
+                            </div>
+                            <div class="modal-footer">
+                                <button id="template-delete-cancel" class="btn btn-secondary">Cancel</button>
+                                <button id="template-delete-confirm" class="btn btn-danger">Delete</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Upload View -->
+                <div id="upload-view" class="view" style="display: none;">
+                    <div class="upload-header">
+                        <div class="upload-header-content">
+                            <h2>Uploads</h2>
+                            <div class="upload-controls">
+                                <button id="upload-browse-recordings-btn" class="btn btn-primary">
+                                    <span>📁</span> Browse Recordings
+                                </button>
+                                <button id="start-queue-btn" class="btn btn-success">
+                                    <span>▶️</span> Start Queue
+                                </button>
+                                <button id="pause-queue-btn" class="btn btn-warning" style="display: none;">
+                                    <span>⏸️</span> Pause Queue
+                                </button>
+                                <button id="clear-completed-btn" class="btn btn-secondary">
+                                    <span>🧹</span> Clear Completed
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="upload-filters">
+                        <button class="filter-btn active" data-filter="all">All</button>
+                        <button class="filter-btn" data-filter="queued">Queued</button>
+                        <button class="filter-btn" data-filter="in-progress">In Progress</button>
+                        <button class="filter-btn" data-filter="completed">Completed</button>
+                        <button class="filter-btn" data-filter="failed">Failed</button>
+                    </div>
+
+                    <div class="upload-container">
+                        <div class="uploads-list-unified" id="unified-uploads-list">
+                            <!-- All uploads will be displayed here in a single column -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Edit Video View -->
+                <div id="edit-video-view" class="view" style="display: none;">
+                    <!-- Full view loading overlay -->
+                    <div class="full-view-overlay" id="edit-video-overlay" style="display: none;">
+                        <div class="overlay-message">Loading assets...</div>
+                    </div>
+                    <div class="post-header">
+                        <div class="edit-mode-toggle">
+                            <button id="clip-mode-btn" class="mode-btn active" data-mode="clip">
+                                Clip
+                            </button>
+                            <button id="concat-mode-btn" class="mode-btn" data-mode="concatenate">
+                                Concatenate
+                            </button>
+                        </div>
+                        <div class="post-controls">
+                            <button id="edit-browse-recordings-btn" class="btn btn-primary">Browse Recordings</button>
+                            <button id="edit-load-video-btn" class="btn btn-secondary">Load Video</button>
+                            <button id="edit-load-events-btn" class="btn btn-secondary">Load Events</button>
+                        </div>
+                    </div>
+
+                    <div class="post-container">
+                        <!-- Video Player Section -->
+                        <div class="video-section">
+                            <div class="video-player-wrapper">
+                                <video id="edit-video-player" controls>
+                                    <source src="" type="video/mp4">
+                                    Your browser does not support the video tag.
+                                </video>
+                                <!-- Multi-track indicator -->
+                                <div id="multi-track-indicator" class="multi-track-indicator" style="display: none;">
+                                    <i class="fas fa-layer-group"></i> Multi-track mode
+                                </div>
+                                <!-- Clip bounds indicator overlay -->
+                                <div class="clip-bounds-overlay" id="clip-bounds-overlay">
+                                    <div class="clip-out-region clip-out-start" id="clip-out-start"></div>
+                                    <div class="clip-in-region" id="clip-in-region"></div>
+                                    <div class="clip-out-region clip-out-end" id="clip-out-end"></div>
+                                    <div class="clip-marker clip-marker-in" id="clip-marker-in" title="Mark In"></div>
+                                    <div class="clip-marker clip-marker-out" id="clip-marker-out" title="Mark Out"></div>
+                                </div>
+                            </div>
+                            
+                            <!-- Video Controls -->
+                            <div class="edit-video-controls">
+                                <!-- Mark In/Out Controls -->
+                                <div class="mark-controls">
+                                    <button id="mark-in-btn" class="btn btn-sm" title="Mark In Point (I)">
+                                        <span class="control-icon">[</span> Mark In
+                                    </button>
+                                    <span class="mark-time" id="mark-in-time">--:--:--</span>
+                                    <button id="clear-in-btn" class="btn btn-sm btn-secondary" title="Clear In Point">✕</button>
+                                    
+                                    <div class="control-separator"></div>
+                                    
+                                    <button id="mark-out-btn" class="btn btn-sm" title="Mark Out Point (O)">
+                                        Mark Out <span class="control-icon">]</span>
+                                    </button>
+                                    <span class="mark-time" id="mark-out-time">--:--:--</span>
+                                    <button id="clear-out-btn" class="btn btn-sm btn-secondary" title="Clear Out Point">✕</button>
+                                </div>
+                                
+                                <!-- Frame Navigation Controls -->
+                                <div class="frame-controls">
+                                    <button id="restart-clip-btn" class="btn btn-sm btn-primary" title="Restart from Mark In">
+                                        <span class="control-icon">⟲</span> Restart
+                                    </button>
+                                    
+                                    <div class="control-separator"></div>
+                                    
+                                    <label class="frame-label">Frame Step:</label>
+                                    <input type="number" id="frame-step" class="frame-input" value="1" min="1" max="60" title="Number of frames to step">
+                                    <span class="frame-unit">frames</span>
+                                    
+                                    <button id="frame-back-btn" class="btn btn-sm" title="Step Back">
+                                        <span class="control-icon">◀◀</span> Back
+                                    </button>
+                                    <button id="frame-forward-btn" class="btn btn-sm" title="Step Forward">
+                                        Forward <span class="control-icon">▶▶</span>
+                                    </button>
+                                    
+                                    <div class="control-separator"></div>
+                                    
+                                    <span class="fps-display">
+                                        <span id="fps-value">30</span> fps
+                                    </span>
+                                </div>
+                                
+                                <!-- Clip Duration Display -->
+                                <div class="clip-info">
+                                    <span class="clip-duration">
+                                        Clip Duration: <span id="clip-duration">--:--:--</span>
+                                    </span>
+                                </div>
+                            </div>
+
+                            <!-- Audio Track Mixer Panel -->
+                            <div class="audio-track-mixer-panel">
+                                <h3 class="panel-header">
+                                    Audio Track Mixer
+                                    <div class="mixer-header-controls">
+                                        <label class="multi-track-toggle">
+                                            <input type="checkbox" id="multi-track-enabled" checked>
+                                            <span class="toggle-label">Multi-track: <span id="multi-track-status">Enabled</span></span>
+                                        </label>
+                                        <button class="btn btn-sm toggle-mixer-btn" id="toggle-mixer">
+                                            <span class="toggle-icon">▼</span>
+                                        </button>
+                                    </div>
+                                </h3>
+
+                                <div class="mixer-content" id="mixer-content">
+                                    <!-- Track Timeline Container -->
+                                    <div class="track-timeline-container">
+                                        <div class="timeline-header">
+                                            <div class="track-labels">
+                                                <!-- Track labels will be added dynamically -->
+                                            </div>
+                                            <div class="timeline-ruler">
+                                                <!-- Time markers will be added dynamically -->
+                                            </div>
+                                        </div>
+
+                                        <div class="tracks-container" id="audio-tracks-container">
+                                            <!-- Audio tracks will be added dynamically based on available tracks -->
+                                        </div>
+
+                                        <!-- Timeline indicators -->
+                                        <div class="playhead-line" id="mixer-playhead"></div>
+                                        <div class="mark-in-line" id="mixer-mark-in" style="display: none;"></div>
+                                        <div class="mark-out-line" id="mixer-mark-out" style="display: none;"></div>
+                                    </div>
+
+                                    <!-- Track Controls -->
+                                    <div class="track-controls">
+                                        <div class="track-control-buttons">
+                                            <button class="btn btn-sm" id="clear-all-btn" title="Clear all segments">
+                                                <span>🗑️</span> Clear All Segments
+                                            </button>
+                                            <span class="help-text">Click and drag to create. Double-click to expand to full. Right-click to delete.</span>
+                                            <div class="audio-sync-controls inline-flex-center ml-20" style="gap: 10px;">
+                                                <label class="audio-sync-label">Audio Sync:</label>
+                                                <button class="btn btn-sm" id="sync-minus-50" title="Audio 50ms earlier">-50ms</button>
+                                                <button class="btn btn-sm" id="sync-minus-10" title="Audio 10ms earlier">-10ms</button>
+                                                <span id="sync-offset-display" class="audio-sync-display">0ms</span>
+                                                <button class="btn btn-sm" id="sync-plus-10" title="Audio 10ms later">+10ms</button>
+                                                <button class="btn btn-sm" id="sync-plus-50" title="Audio 50ms later">+50ms</button>
+                                                <button class="btn btn-sm" id="sync-reset" title="Reset sync">Reset</button>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Segment Editor (hidden by default) -->
+                                    <div class="segment-editor" id="segment-editor" style="display: none;">
+                                        <div class="segment-controls">
+                                            <div class="segment-field">
+                                                <label>Start:</label>
+                                                <div class="time-input-group">
+                                                    <input type="text" id="segment-start-time" class="form-control" placeholder="00:00">
+                                                    <button class="btn btn-sm set-current-btn" id="set-start-current" title="Set to current playback time">
+                                                        Set to Current
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            <div class="segment-field">
+                                                <label>End:</label>
+                                                <div class="time-input-group">
+                                                    <input type="text" id="segment-end-time" class="form-control" placeholder="00:00">
+                                                    <button class="btn btn-sm set-current-btn" id="set-end-current" title="Set to current playback time">
+                                                        Set to Current
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            <div class="segment-field volume-field">
+                                                <label>Volume:</label>
+                                                <div class="volume-control">
+                                                    <span class="volume-label">-20</span>
+                                                    <input type="range" id="segment-volume" class="volume-slider" min="-20" max="20" value="0" step="1">
+                                                    <span class="volume-label">+20</span>
+                                                    <span class="volume-value" id="segment-volume-value">0 dB</span>
+                                                </div>
+                                            </div>
+                                            <div class="segment-actions">
+                                                <button class="btn btn-sm" id="set-all-duration-btn" title="Set to full duration">
+                                                    All
+                                                </button>
+                                                <button class="btn btn-sm btn-danger" id="delete-segment-btn">
+                                                    <i class="fas fa-trash"></i> Delete
+                                                </button>
+                                                <button class="btn btn-sm btn-primary" id="save-segment-btn">
+                                                    <i class="fas fa-save"></i> Save
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Export Settings Panel -->
+                            <div class="export-settings-panel">
+                                <h3 class="panel-header">Export Settings</h3>
+                                
+                                <!-- File Settings -->
+                                <div class="export-section">
+                                    <h4>Output File</h4>
+                                    <div class="file-settings">
+                                        <div class="file-row">
+                                            <div class="file-field">
+                                                <label>Filename:</label>
+                                                <input type="text" id="export-filename" class="form-control" placeholder="output_video">
+                                            </div>
+                                            <div class="file-field narrow">
+                                                <label>Container:</label>
+                                                <select id="container-format" class="form-control">
+                                                    <option value="mp4">MP4</option>
+                                                    <option value="mkv" selected>MKV</option>
+                                                    <option value="webm">WebM</option>
+                                                    <option value="mov">MOV</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Encoding Settings -->
+                                <div class="export-section">
+                                    <h4>Encoding</h4>
+                                    <div class="encoding-settings">
+                                        <label class="checkbox-label">
+                                            <input type="checkbox" id="transcode-enable">
+                                            Transcode Video
+                                        </label>
+                                        
+                                        <div id="transcode-options" class="transcode-options" style="display: none;">
+                                            <div class="transcode-row">
+                                                <div class="transcode-field">
+                                                    <label>Video Codec:</label>
+                                                    <select id="video-codec" class="form-control">
+                                                        <option value="copy">Copy (No Re-encoding)</option>
+                                                        <option value="libx264">H.264 (x264)</option>
+                                                        <option value="libx265">H.265 (x265)</option>
+                                                        <option value="av1">AV1</option>
+                                                        <option value="vp9">VP9</option>
+                                                    </select>
+                                                </div>
+                                                <div class="transcode-field">
+                                                    <label>Quality Preset:</label>
+                                                    <select id="quality-preset" class="form-control">
+                                                        <option value="ultrafast">Ultrafast</option>
+                                                        <option value="superfast">Superfast</option>
+                                                        <option value="veryfast">Very Fast</option>
+                                                        <option value="faster">Faster</option>
+                                                        <option value="fast" selected>Fast</option>
+                                                        <option value="medium">Medium</option>
+                                                        <option value="slow">Slow</option>
+                                                        <option value="slower">Slower</option>
+                                                        <option value="veryslow">Very Slow</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                            <div class="transcode-field">
+                                                <label>Bitrate (Mbps):</label>
+                                                <input type="number" id="video-bitrate" class="form-control" min="1" max="100" value="25">
+                                            </div>
+                                        </div>
+                                        
+                                        <label class="checkbox-label">
+                                            <input type="checkbox" id="export-chapters">
+                                            Export YouTube Chapters (.txt)
+                                        </label>
+                                    </div>
+                                </div>
+                                
+                                <!-- Export Info and Button -->
+                                <div class="export-section">
+                                    <div class="export-info-display">
+                                        <span>Est. Size: <span id="est-file-size">--</span></span>
+                                        <span>Output Duration: <span id="output-duration">--:--:--</span></span>
+                                    </div>
+                                    
+                                    <button id="export-video-btn" class="btn btn-primary btn-lg" disabled>
+                                        <span class="btn-icon">💾</span> Export Video
+                                    </button>
+                                    
+                                    <div class="export-progress" id="export-progress" style="display: none;">
+                                        <div class="progress-bar">
+                                            <div class="progress-fill progress-fill-style" id="progress-fill" style="width: 0%"></div>
+                                        </div>
+                                        <span class="progress-text" id="progress-text">0%</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Timeline Section (Right) -->
+                        <div class="timeline-section">
+                            <div class="timeline-header">
+                                <h3>Event Timeline</h3>
+                                <span class="timeline-count" id="edit-timeline-count">0 events</span>
+                            </div>
+                            
+                            <div class="timeline-container" id="edit-timeline-container">
+                                <div class="timeline-track" id="edit-timeline-track">
+                                    <!-- Timeline markers will be added here -->
+                                </div>
+                                
+                                <div class="timeline-events" id="edit-timeline-events">
+                                    <!-- Event list will be added here -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Export Progress Dialog -->
+                    <div id="export-progress-modal" class="modal" style="display: none;">
+                        <div class="modal-content modal-content-medium">
+                            <div class="modal-header">
+                                <h3>Exporting Video</h3>
+                            </div>
+                            <div class="modal-body">
+                                <div class="export-progress-status">
+                                    <div class="progress-step" id="step-prepare">
+                                        <span class="step-icon">⏳</span>
+                                        <span class="step-text">Preparing export...</span>
+                                    </div>
+                                    <div class="progress-step" id="step-cut" style="display: none;">
+                                        <span class="step-icon">✂️</span>
+                                        <span class="step-text">Cutting video segments...</span>
+                                    </div>
+                                    <div class="progress-step" id="step-audio" style="display: none;">
+                                        <span class="step-icon">🎵</span>
+                                        <span class="step-text">Mixing audio tracks...</span>
+                                    </div>
+                                    <div class="progress-step" id="step-encode" style="display: none;">
+                                        <span class="step-icon">🎬</span>
+                                        <span class="step-text">Encoding video...</span>
+                                    </div>
+                                    <div class="progress-step" id="step-save" style="display: none;">
+                                        <span class="step-icon">💾</span>
+                                        <span class="step-text">Saving file...</span>
+                                    </div>
+                                </div>
+                                <div class="export-progress-bar" style="margin-top: 20px;">
+                                    <div class="progress-bar">
+                                        <div class="progress-fill progress-fill-style" id="export-modal-progress" style="width: 0%"></div>
+                                    </div>
+                                    <div class="progress-details mt-10" style="text-align: center;">
+                                        <span id="export-progress-percent">0%</span>
+                                        <span id="export-progress-time" class="ml-20"></span>
+                                    </div>
+                                </div>
+                                <div class="export-complete-stats bg-overlay-dark" id="export-complete-stats" style="display: none; margin-top: 20px; padding: 15px; border-radius: 6px;">
+                                    <h4 class="export-complete-header">Export Complete!</h4>
+                                    <div class="export-complete-content">
+                                        <div>📁 <strong>File Size:</strong> <span id="export-file-size">--</span></div>
+                                        <div>⏱️ <strong>Video Duration:</strong> <span id="export-video-duration">--</span></div>
+                                        <div>⚡ <strong>Export Time:</strong> <span id="export-time-taken">--</span></div>
+                                        <div>📍 <strong>Output Path:</strong> <span id="export-output-path" class="export-path-text">--</span></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button id="cancel-export-btn" class="btn btn-secondary">Cancel Export</button>
+                                <button id="open-output-folder-btn" class="btn btn-primary" style="display: none;">Open Output Folder</button>
+                                <button id="close-export-modal-btn" class="btn btn-secondary" style="display: none;">Close</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+
+                <!-- New General Settings View -->
+                <div id="general-settings-view" class="view" style="display: none;">
+                    <div class="settings-header">
+                        <div class="settings-header-info">
+                            <h2>General Settings</h2>
+                            <p class="settings-header-description">Configure your Star Citizen installation path and core recording preferences</p>
+                        </div>
+                        <div class="settings-actions">
+                            <button id="reload-general-config" class="btn btn-secondary">Reload</button>
+                            <button id="save-general-config" class="btn btn-primary">Save Changes</button>
+                        </div>
+                    </div>
+                    <div class="settings-container">
+                        <div class="settings-section">
+                            <h4>Star Citizen Installation</h4>
+                            <div class="settings-grid">
+                                <div class="setting-item full-width">
+                                    <label>Star Citizen Path</label>
+                                    <div class="flex-gap-10">
+                                        <input type="text" id="sc-path-general" class="setting-control" placeholder="Select Star Citizen folder" readonly>
+                                        <button id="browse-sc-general" class="btn btn-secondary">Browse</button>
+                                    </div>
+                                    <small class="setting-help">Select the main Star Citizen installation folder</small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="settings-section">
+                            <h4>Global Hotkeys</h4>
+                            <div class="settings-grid">
+                                <div class="setting-item">
+                                    <label>Start/Stop Recording</label>
+                                    <div class="flex-gap-10">
+                                        <input type="text" id="hotkey-start-stop" class="setting-control hotkey-input" placeholder="Click to set hotkey" readonly>
+                                        <button class="btn btn-secondary btn-sm clear-hotkey" data-hotkey="start-stop">Clear</button>
+                                    </div>
+                                    <small class="setting-help">Global hotkey to toggle recording</small>
+                                </div>
+                                <div class="setting-item">
+                                    <label>Split Recording</label>
+                                    <div class="flex-gap-10">
+                                        <input type="text" id="hotkey-split" class="setting-control hotkey-input" placeholder="Click to set hotkey" readonly>
+                                        <button class="btn btn-secondary btn-sm clear-hotkey" data-hotkey="split">Clear</button>
+                                    </div>
+                                    <small class="setting-help">Start a new recording file while continuing to record</small>
+                                </div>
+                                <div class="setting-item">
+                                    <label>Mark Event</label>
+                                    <div class="flex-gap-10">
+                                        <input type="text" id="hotkey-mark-event" class="setting-control hotkey-input" placeholder="Click to set hotkey" readonly>
+                                        <button class="btn btn-secondary btn-sm clear-hotkey" data-hotkey="mark-event">Clear</button>
+                                    </div>
+                                    <small class="setting-help">Mark a manual event at current timestamp</small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="settings-section">
+                            <h4>Recording Options</h4>
+                            <div class="settings-grid">
+                                <div class="setting-item">
+                                    <label class="checkbox-container">
+                                        <input type="checkbox" id="auto-start-recording">
+                                        <span>Auto-Start Recording</span>
+                                    </label>
+                                    <small class="setting-help">Automatically start recording when all systems are ready</small>
+                                </div>
+
+                                <div class="setting-item">
+                                    <label class="checkbox-container">
+                                        <input type="checkbox" id="enable-shadow-play">
+                                        <span>Enable Shadow Play Mode</span>
+                                    </label>
+                                    <small class="setting-help">Continuously record in a rolling buffer with automatic file management</small>
+                                </div>
+
+                                <div class="setting-item">
+                                    <label>File Split Duration (minutes)</label>
+                                    <input type="number" id="file-split-duration" class="setting-control" min="1" max="60" value="5">
+                                    <small class="setting-help">Duration before creating a new recording file (1-60 minutes)</small>
+                                </div>
+
+                                <div class="setting-item">
+                                    <label>Maximum Storage (GB)</label>
+                                    <input type="number" id="max-storage-gb" class="setting-control" min="1" max="1000" value="50">
+                                    <small class="setting-help">Maximum storage for recordings folder before deleting old files</small>
+                                </div>
+
+                                <div class="setting-item">
+                                    <label>Keep Minimum Files</label>
+                                    <input type="number" id="min-files-to-keep" class="setting-control" min="0" max="100" value="5">
+                                    <small class="setting-help">Minimum files to keep (0 = disabled, no minimum)</small>
+                                </div>
+
+                                <div class="setting-item">
+                                    <label>Keep Maximum Files</label>
+                                    <input type="number" id="max-files-to-keep" class="setting-control" min="0" max="1000" value="0">
+                                    <small class="setting-help">Maximum files to keep (0 = disabled, no maximum)</small>
+                                </div>
+
+                                <div class="setting-item full-width">
+                                    <div class="info-box info-box-primary" style="padding: 10px; border-radius: 4px;">
+                                        <strong>Shadow Play Mode:</strong> When enabled, recordings will automatically split at the specified duration. Old recordings will be deleted based on:<br>
+                                        1. <strong>Storage limit (highest priority)</strong> - Protects your disk space<br>
+                                        2. <strong>Maximum files</strong> - Maintains file count<br>
+                                        3. <strong>Minimum files</strong> - Always keeps at least this many<br>
+                                        Set any limit to 0 to disable it. Files in 'saved' and 'edited' folders are never deleted.
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Bottom padding spacer -->
+                        <div class="spacer-100"></div>
+                    </div>
+                </div>
+
+                <!-- New Capture Settings View -->
+                <div id="capture-settings-view" class="view" style="display: none;">
+                    <div class="settings-header">
+                        <div class="settings-header-info">
+                            <h2>Capture Settings</h2>
+                            <p class="settings-header-description">Fine-tune video encoding, audio sources, and recording quality for optimal performance</p>
+                        </div>
+                        <div class="settings-actions">
+                            <button id="reload-capture-config" class="btn btn-secondary">Reload</button>
+                            <button id="save-capture-config" class="btn btn-primary">Save Changes</button>
+                        </div>
+                    </div>
+                    <div class="settings-container">
+                        <!-- Video Encoding -->
+                        <div class="settings-section">
+                            <div class="section-header-styled">
+                                <h4>Video Encoding</h4>
+                                <button id="detect-encoders-capture" class="btn-detect">Detect Encoders</button>
+                            </div>
+                            <div class="settings-grid">
+                                <div class="setting-item">
+                                    <label>Encoder</label>
+                                    <select id="encoder-select-capture" class="setting-control">
+                                        <option value="">Loading...</option>
+                                    </select>
+                                    <small class="setting-help">Hardware encoders provide better performance</small>
+                                </div>
+
+                                <div class="setting-item">
+                                    <label>Bitrate Mode</label>
+                                    <select id="bitrate-mode-capture" class="setting-control">
+                                        <option value="manual">Manual</option>
+                                        <option value="auto">Auto (Based on Resolution)</option>
+                                    </select>
+                                </div>
+
+                                <div class="setting-item">
+                                    <label>Quality</label>
+                                    <select id="quality-select-capture" class="setting-control">
+                                        <option value="low">Low (15 Mbps)</option>
+                                        <option value="medium">Medium (25 Mbps)</option>
+                                        <option value="high" selected>High (50 Mbps)</option>
+                                        <option value="ultra">Ultra (80 Mbps)</option>
+                                        <option value="custom">Custom</option>
+                                    </select>
+                                </div>
+
+                                <div class="setting-item" id="custom-bitrate-container-capture" style="display: none;">
+                                    <label>Custom Bitrate (Kbps)</label>
+                                    <input type="number" id="bitrate-input-capture" class="setting-control" value="50000" min="5000" max="150000">
+                                </div>
+
+                                <div class="setting-item">
+                                    <label>Framerate</label>
+                                    <select id="framerate-select-capture" class="setting-control">
+                                        <option value="30">30 FPS</option>
+                                        <option value="60" selected>60 FPS</option>
+                                    </select>
+                                </div>
+
+                                <div class="setting-item">
+                                    <label>Game Resolution</label>
+                                    <select id="display-select-capture" class="setting-control">
+                                        <option value="">Loading displays...</option>
+                                    </select>
+                                    <div id="custom-display-container-capture" style="display: none; margin-top: 10px;">
+                                        <div class="flex-gap-10">
+                                            <input type="number" id="custom-width-input-capture" class="setting-control" placeholder="Width" min="640" max="7680">
+                                            <span class="align-self-center">×</span>
+                                            <input type="number" id="custom-height-input-capture" class="setting-control" placeholder="Height" min="360" max="4320">
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="setting-item">
+                                    <label>Performance Profile <span class="label-optional">(Optional)</span></label>
+                                    <select id="performance-profile-capture" class="setting-control">
+                                        <option value="custom">Custom (Manual Control)</option>
+                                        <option value="performance">Performance (Lower Impact)</option>
+                                        <option value="balanced">Balanced (Moderate Quality)</option>
+                                        <option value="quality">Quality (Best Recording)</option>
+                                    </select>
+                                    <small class="setting-help">Optional presets to optimize performance. Custom keeps your manual settings.</small>
+                                </div>
+
+                                <div class="setting-item">
+                                    <label>Resolution</label>
+                                    <select id="resolution-select-capture" class="setting-control">
+                                        <option value="native">Native (Match Display)</option>
+                                        <option value="scale-75">75% Scale (Balanced)</option>
+                                        <option value="scale-50">50% Scale (Performance)</option>
+                                        <option value="1920x1080">1080p (1920×1080)</option>
+                                        <option value="2560x1440">1440p (2560×1440)</option>
+                                        <option value="3840x2160">4K (3840×2160)</option>
+                                        <option value="custom">Custom</option>
+                                    </select>
+                                    <small class="setting-help">Lower resolutions improve performance but reduce recording resolution</small>
+                                </div>
+
+                                <div class="setting-item" id="custom-resolution-container-capture" style="display: none;">
+                                    <label>Custom Resolution</label>
+                                    <div class="flex-gap-10">
+                                        <input type="number" id="width-input-capture" class="setting-control" placeholder="Width" min="640" max="7680">
+                                        <span style="align-self: center;">×</span>
+                                        <input type="number" id="height-input-capture" class="setting-control" placeholder="Height" min="360" max="4320">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Audio Configuration -->
+                        <div class="settings-section">
+                            <div class="section-header-styled">
+                                <h4>Audio Configuration</h4>
+                                <button id="detect-audio-capture" class="btn-detect">Detect Audio</button>
+                            </div>
+                            <div class="settings-grid">
+                                <div class="setting-item full-width">
+                                    <label class="checkbox-container">
+                                        <input type="checkbox" id="track1-enabled-capture" checked>
+                                        <span>Track 1: Star Citizen Game Audio</span>
+                                    </label>
+                                    <small class="setting-help">Primary game audio (always captured)</small>
+                                </div>
+
+                                <div class="setting-item full-width">
+                                    <label class="checkbox-container">
+                                        <input type="checkbox" id="track2-enabled-capture">
+                                        <span>Track 2: Secondary Audio</span>
+                                    </label>
+                                    <div class="flex-gap-10 mt-10">
+                                        <select id="track2-type-capture" class="setting-control" disabled>
+                                            <option value="application">Application</option>
+                                            <option value="device">Audio Device</option>
+                                        </select>
+                                        <select id="track2-source-capture" class="setting-control" disabled>
+                                            <option value="">Select source...</option>
+                                        </select>
+                                    </div>
+                                    <small class="setting-help">Discord, music, or microphone</small>
+                                </div>
+
+                                <div class="setting-item full-width">
+                                    <label class="checkbox-container">
+                                        <input type="checkbox" id="track3-enabled-capture">
+                                        <span>Track 3: Microphone</span>
+                                    </label>
+                                    <select id="track3-source-capture" class="setting-control" disabled>
+                                        <option value="">Select microphone...</option>
+                                    </select>
+                                    <small class="setting-help">Commentary or voice recording</small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- File Management -->
+                        <div class="settings-section">
+                            <h4>File Management</h4>
+                            <div class="settings-grid">
+                                <div class="setting-item full-width">
+                                    <label>Output Folder</label>
+                                    <div class="flex-gap-10">
+                                        <input type="text" id="output-path-capture" class="setting-control" placeholder="Select output folder" readonly>
+                                        <button id="browse-output-capture" class="btn btn-secondary">Browse</button>
+                                    </div>
+                                    <small class="setting-help">Where your recordings will be saved</small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Bottom padding spacer -->
+                        <div class="spacer-100"></div>
+                    </div>
+                </div>
+
+                <!-- New Online Accounts View -->
+                <div id="online-accounts-view" class="view" style="display: none;">
+                    <div class="settings-header">
+                        <div class="settings-header-info">
+                            <h2>Online Accounts</h2>
+                            <p class="settings-header-description">Connect your streaming platforms and manage upload destinations</p>
+                        </div>
+                        <div class="settings-actions">
+                            <button id="add-account-btn" class="btn btn-primary">Add Account</button>
+                            <button id="test-account-btn" class="btn btn-secondary" disabled>Test Connection</button>
+                            <button id="delete-account-btn" class="btn btn-danger" disabled>Delete</button>
+                        </div>
+                    </div>
+                    <div class="settings-container">
+                        <div id="account-status" class="status-message"></div>
+
+                        <!-- YouTube Test Mode Notice -->
+                        <div class="setting-item">
+                            <div class="setting-help" style="background: var(--background-secondary); padding: 12px; border-radius: 6px; border: 1px solid var(--border); margin-bottom: 20px;">
+                                <strong style="color: var(--primary);">Note:</strong> YouTube integration is currently in test mode. To request testing access, please contact the developer.
+                            </div>
+                        </div>
+
+                        <div id="accounts-list" class="accounts-list">
+                            <!-- Accounts will be rendered here -->
+                        </div>
+
+                        <!-- Add Account Dialog -->
+                        <div id="add-account-dialog" class="modal" style="display: none;">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h3>Add Upload Account</h3>
+                                </div>
+                                <div class="modal-body">
+                                    <div class="form-group">
+                                        <label for="account-type-select">Account Type</label>
+                                        <select id="account-type-select" class="form-control">
+                                            <option value="s3">S3-Compatible Storage</option>
+                                            <option value="youtube">YouTube</option>
+                                            <option value="twitch">Twitch (Streaming - Coming Soon)</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="account-name-input">Account Name</label>
+                                        <input type="text" id="account-name-input" class="form-control"
+                                               placeholder="e.g., My S3 Backup">
+                                    </div>
+                                    <div id="account-form">
+                                        <!-- Dynamic form fields based on account type -->
+                                    </div>
+                                </div>
+                                <div class="modal-footer">
+                                    <button id="cancel-account-btn" class="btn btn-secondary">Cancel</button>
+                                    <button id="save-account-btn" class="btn btn-primary">Save Account</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Custom Confirmation Modal -->
+                        <div id="confirm-delete-modal" class="modal" style="display: none;">
+                            <div class="modal-content modal-content-compact">
+                                <div class="modal-header">
+                                    <h3>Confirm Deletion</h3>
+                                </div>
+                                <div class="modal-body">
+                                    <p id="confirm-delete-message"></p>
+                                </div>
+                                <div class="modal-footer">
+                                    <button id="confirm-delete-cancel" class="btn btn-secondary">Cancel</button>
+                                    <button id="confirm-delete-confirm" class="btn btn-danger">Delete</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Bottom padding spacer -->
+                        <div class="spacer-100"></div>
+                    </div>
+                </div>
+
+                <!-- New Advanced Settings View -->
+                <div id="advanced-settings-view" class="view" style="display: none;">
+                    <div class="settings-header">
+                        <div class="settings-header-info">
+                            <h2>Advanced Settings</h2>
+                            <p class="settings-header-description">Expert controls for OBS integration and custom recording profiles</p>
+                        </div>
+                        <div class="settings-actions">
+                            <button id="reload-advanced-config" class="btn btn-secondary">Reload</button>
+                            <button id="save-advanced-config" class="btn btn-primary">Save Changes</button>
+                        </div>
+                    </div>
+                    <div class="settings-container">
+                        <div class="settings-section">
+                            <h4>System Settings</h4>
+                            <div class="settings-grid">
+                                <div class="setting-item">
+                                    <label class="checkbox-container">
+                                        <input type="checkbox" id="obs-auto-restart-advanced" checked>
+                                        <span>Auto-restart OBS on crash</span>
+                                    </label>
+                                    <small class="setting-help">Automatically restart OBS if it crashes or is closed unexpectedly (max 3 attempts)</small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="settings-section">
+                            <h4>Custom OBS Configuration</h4>
+                            <div class="settings-grid">
+                                <div class="setting-item full-width">
+                                    <label class="checkbox-container">
+                                        <input type="checkbox" id="use-custom-obs-profile">
+                                        <span>Use Custom OBS Profile</span>
+                                    </label>
+                                    <small class="setting-help">Override default profile with custom configuration</small>
+                                    <div class="custom-file-upload" style="margin-top: 10px;">
+                                        <input type="file" id="custom-obs-profile-file" accept=".ini" style="display: none;">
+                                        <button id="upload-obs-profile-btn" class="btn btn-secondary">
+                                            <i class="fas fa-upload"></i> Upload Profile (.ini)
+                                        </button>
+                                        <span id="custom-profile-filename" class="file-status" style="margin-left: 10px;"></span>
+                                    </div>
+                                </div>
+
+                                <div class="setting-item full-width">
+                                    <label class="checkbox-container">
+                                        <input type="checkbox" id="use-custom-obs-scene">
+                                        <span>Use Custom OBS Scene Collection</span>
+                                    </label>
+                                    <small class="setting-help">Override default scene collection with custom configuration</small>
+                                    <div class="custom-file-upload" style="margin-top: 10px;">
+                                        <input type="file" id="custom-obs-scene-file" accept=".json" style="display: none;">
+                                        <button id="upload-obs-scene-btn" class="btn btn-secondary">
+                                            <i class="fas fa-upload"></i> Upload Scene Collection (.json)
+                                        </button>
+                                        <span id="custom-scene-filename" class="file-status" style="margin-left: 10px;"></span>
+                                    </div>
+                                </div>
+
+                                <div class="setting-item">
+                                    <button id="clear-custom-obs-files" class="btn btn-secondary">
+                                        <i class="fas fa-trash"></i> Clear Custom Files
+                                    </button>
+                                    <small class="setting-help">Remove uploaded custom OBS configuration files</small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="settings-section">
+                            <h4>Maintenance</h4>
+                            <div class="settings-grid">
+                                <div class="setting-item">
+                                    <button id="regenerate-templates-advanced" class="btn btn-secondary">
+                                        <i class="fas fa-sync"></i> Regenerate Templates
+                                    </button>
+                                    <small class="setting-help">Recreate OBS configuration files from current settings</small>
+                                </div>
+
+                                <div class="setting-item">
+                                    <button id="rerun-wizard-advanced" class="btn btn-secondary">
+                                        <i class="fas fa-magic"></i> Re-run Setup Wizard
+                                    </button>
+                                    <small class="setting-help">Reconfigure StarCapture from scratch</small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Bottom padding spacer -->
+                        <div class="spacer-100"></div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <script>
+        const { ipcRenderer } = require('electron');
+        // Make ipcRenderer globally available for all modules
+        window.ipcRenderer = ipcRenderer;
+
+        // Window control handlers (for frameless window)
+        document.getElementById('minimize-btn')?.addEventListener('click', () => {
+            ipcRenderer.send('window-control', 'minimize');
+        });
+
+        document.getElementById('maximize-btn')?.addEventListener('click', () => {
+            ipcRenderer.send('window-control', 'maximize');
+        });
+
+        document.getElementById('close-btn')?.addEventListener('click', () => {
+            ipcRenderer.send('window-control', 'close');
+        });
+
+        // Recording state
+        let isRecording = false;
+
+
+        // Global system ready status
+        window.systemReady = false;
+
+        // Status updates
+        function updateStatus(statusId, value, isActive = false) {
+            const element = document.getElementById(statusId);
+            if (element) {
+                element.textContent = value;
+                element.className = isActive ? 'status-value active' : 'status-value';
+            }
+        }
+
+
+        // Initialize status indicators with offline state
+        document.getElementById('obs-status').className = 'status-item';
+        document.getElementById('websocket-status').className = 'status-item';
+        document.getElementById('supervisor-status').className = 'status-item';
+        document.getElementById('sc-status').className = 'status-item';
+        document.getElementById('sc-log-status').className = 'status-item';
+        document.getElementById('sc-instance').className = 'status-item';
+        document.getElementById('recording-status').className = 'status-recording';
+
+        // Listen for status updates from main process
+        ipcRenderer.on('status-update', (event, state) => {
+            console.log('Status update:', state);
+
+            // Update Supervisor status
+            if (state.supervisor) {
+                const supervisorElement = document.getElementById('supervisor-status');
+                if (supervisorElement) {
+                    let supervisorClass = 'status-item';
+                    if (state.supervisor === 'running') {
+                        supervisorClass = 'status-item active';
+                    } else if (state.supervisor === 'initializing') {
+                        supervisorClass = 'status-item warning';
+                    } else if (state.supervisor === 'error') {
+                        supervisorClass = 'status-item error';
+                    }
+                    supervisorElement.className = supervisorClass;
+                }
+            }
+
+            // Update OBS and WebSocket status
+            if (state.obs) {
+                // OBS Process status
+                const obsElement = document.getElementById('obs-status');
+                if (obsElement) {
+                    let obsClass = 'status-item';
+                    if (state.obs.process === 'running') {
+                        obsClass = 'status-item active';
+                    } else if (state.obs.process === 'starting') {
+                        obsClass = 'status-item warning';
+                    } else if (state.obs.process === 'error') {
+                        obsClass = 'status-item error';
+                    }
+                    obsElement.className = obsClass;
+                }
+
+                // WebSocket status
+                const wsElement = document.getElementById('websocket-status');
+                if (wsElement) {
+                    let wsClass = 'status-item';
+                    if (state.obs.websocket === 'connected') {
+                        wsClass = 'status-item active';
+                    } else if (state.obs.websocket === 'connecting') {
+                        wsClass = 'status-item warning';
+                    } else if (state.obs.websocket === 'error') {
+                        wsClass = 'status-item error';
+                    }
+                    wsElement.className = wsClass;
+                }
+            }
+
+            // Update Star Citizen status
+            if (state.starCitizen) {
+                // Star Citizen process status
+                const scElement = document.getElementById('sc-status');
+                if (scElement) {
+                    let scClass = 'status-item';
+                    if (state.starCitizen.running) {
+                        scClass = 'status-item active';
+                    }
+                    scElement.className = scClass;
+                }
+
+                // Log monitoring status
+                const logElement = document.getElementById('sc-log-status');
+                if (logElement) {
+                    let logClass = 'status-item';
+                    if (state.starCitizen.logActive) {
+                        logClass = 'status-item active';
+                    } else if (state.starCitizen.running && !state.starCitizen.logActive) {
+                        logClass = 'status-item warning';
+                    }
+                    logElement.className = logClass;
+                }
+
+                // Instance display (LIVE/PTU/HOTFIX/WAITING)
+                const instanceElement = document.getElementById('sc-instance');
+                if (instanceElement) {
+                    if (state.starCitizen.running && state.starCitizen.instance) {
+                        if (state.starCitizen.instance === 'WAITING') {
+                            instanceElement.textContent = 'Waiting for logs...';
+                            instanceElement.className = 'status-item warning';
+                        } else if (state.starCitizen.instance === 'UNKNOWN') {
+                            instanceElement.textContent = 'Unknown';
+                            instanceElement.className = 'status-item';
+                        } else {
+                            instanceElement.textContent = state.starCitizen.instance;
+                            instanceElement.className = 'status-item instance';
+                        }
+                    } else {
+                        instanceElement.textContent = '--';
+                        instanceElement.className = 'status-item';
+                    }
+                }
+            }
+
+            // Update recording status
+            if (state.recording) {
+                const recordingElement = document.getElementById('recording-status');
+                if (recordingElement) {
+                    const recordingText = state.recording.active ? 'RECORDING' : 'IDLE';
+                    recordingElement.textContent = recordingText;
+                    recordingElement.className = state.recording.active ?
+                        'status-recording active' : 'status-recording';
+                }
+
+                // Update recording state
+                if (state.recording.active !== isRecording) {
+                    isRecording = state.recording.active;
+                }
+            }
+
+            // Check if system is ready (same conditions as status card)
+            const obsReady = state.obs?.process === "running";
+            const websocketReady = state.obs?.websocket === "connected";
+            const starCitizenReady = state.starCitizen?.running === true;
+            const logMonitorReady = state.starCitizen?.logActive === true;
+
+            // Update global system ready status - all systems must be ready including log monitor
+            window.systemReady = obsReady && websocketReady && starCitizenReady && logMonitorReady;
+            console.log("System ready:", window.systemReady, {
+                obs: obsReady,
+                websocket: websocketReady,
+                starCitizen: starCitizenReady,
+                logMonitor: logMonitorReady
+            });
+        });
+
+        // Poll for initial status
+        async function getInitialStatus() {
+            const status = await ipcRenderer.invoke('get-status');
+            if (status) {
+                ipcRenderer.emit('status-update', null, status);
+            }
+        }
+
+        // Get initial status after a short delay
+        setTimeout(getInitialStatus, 500);
+        
+        // Set up periodic status refresh to ensure UI stays in sync
+        // This helps catch any missed status updates
+        setInterval(async () => {
+            try {
+                const status = await ipcRenderer.invoke('get-status');
+                if (status) {
+                    // Only emit if we got a valid status
+                    ipcRenderer.emit('status-update', null, status);
+                }
+            } catch (error) {
+                console.error('Failed to refresh status:', error);
+            }
+        }, 5000); // Refresh every 5 seconds
+
+        // Load additional modules after DOM is ready
+        setTimeout(() => {
+            // Load recording controller for UI interactions
+            console.log('Loading recording controller...');
+            const recordingScript = document.createElement('script');
+            recordingScript.src = 'recording-controller.js';
+            recordingScript.onerror = (e) => console.error('Failed to load recording controller:', e);
+            recordingScript.onload = () => console.log('Recording controller loaded');
+            document.body.appendChild(recordingScript);
+        }, 100);
+
+        // Notification Manager
+        window.NotificationManager = {
+            container: null,
+
+            init() {
+                this.container = document.getElementById('notification-container');
+            },
+
+            show(message, type = 'info', duration = 5000) {
+                if (!this.container) this.init();
+
+                const icons = {
+                    success: '✓',
+                    error: '✗',
+                    warning: '⚠',
+                    info: 'ℹ'
+                };
+
+                const notification = document.createElement('div');
+                notification.className = `notification ${type}`;
+
+                // Parse message - can be string or object with title and message
+                let title = '';
+                let text = message;
+                if (typeof message === 'object') {
+                    title = message.title || '';
+                    text = message.message || message.text || '';
+                }
+
+                notification.innerHTML = `
+                    <span class="notification-icon">${icons[type]}</span>
+                    <div class="notification-content">
+                        ${title ? `<div class="notification-title">${title}</div>` : ''}
+                        <div class="notification-message">${text}</div>
+                    </div>
+                    <button class="notification-close" onclick="NotificationManager.close(this)">×</button>
+                `;
+
+                this.container.appendChild(notification);
+
+                // Auto-remove after duration
+                if (duration > 0) {
+                    setTimeout(() => {
+                        this.close(notification.querySelector('.notification-close'));
+                    }, duration);
+                }
+
+                return notification;
+            },
+
+            close(closeBtn) {
+                const notification = closeBtn.closest('.notification');
+                if (notification) {
+                    notification.classList.add('fade-out');
+                    setTimeout(() => {
+                        notification.remove();
+                    }, 300);
+                }
+            },
+
+            success(message, duration = 5000) {
+                return this.show(message, 'success', duration);
+            },
+
+            error(message, duration = 5000) {
+                return this.show(message, 'error', duration);
+            },
+
+            warning(message, duration = 5000) {
+                return this.show(message, 'warning', duration);
+            },
+
+            info(message, duration = 5000) {
+                return this.show(message, 'info', duration);
+            }
+        };
+
+        // Initialize notification manager
+        NotificationManager.init();
+    </script>
+    <script src="shared-video-browser.js"></script>
+    <script src="lib/upload-dialog.js"></script>
+    <script src="video-editor-controller.js"></script>
+    <script src="post-controller.js"></script>
+    <script src="filter-editor.js"></script>
+    <script src="settings-new.js"></script>
+    <script src="online-accounts-controller.js"></script>
+    <script src="upload-queue-controller.js"></script>
+    <script>
+        // Initialize controllers after scripts load
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialize post controller
+            if (typeof initializePostView === 'function') {
+                initializePostView();
+                console.log('Post controller initialized');
+            }
+
+            // Initialize filter editor
+            if (typeof initializeFilterEditor === 'function') {
+                initializeFilterEditor();
+                console.log('Filter editor initialized');
+            }
+
+            // Initialize video editor
+            if (typeof initializeVideoEditor === 'function') {
+                initializeVideoEditor();
+                console.log('Video editor controller initialized');
+            }
+
+            // Initialize online accounts controller
+            if (window.OnlineAccountsController) {
+                try {
+                    const onlineAccountsController = new OnlineAccountsController();
+                    onlineAccountsController.initialize();
+                    console.log('Online accounts controller initialized');
+                } catch (error) {
+                    console.error('Failed to initialize online accounts controller:', error);
+                }
+            }
+
+            // Initialize upload queue controller
+            if (window.UploadQueueController) {
+                try {
+                    window.uploadQueueController = new UploadQueueController();
+                    console.log('Upload queue controller initialized');
+                } catch (error) {
+                    console.error('Failed to initialize upload queue controller:', error);
+                }
+            } else {
+                console.log('UploadQueueController not found on window');
+            }
+        });
+    </script>
+    <script>
+        // Simple view navigation
+        document.addEventListener('DOMContentLoaded', function() {
+            // Helper function to pause all video players
+            function pauseAllVideos() {
+                // Pause playback & review video
+                const postVideoPlayer = document.getElementById('video-player');
+                if (postVideoPlayer && !postVideoPlayer.paused) {
+                    postVideoPlayer.pause();
+                    console.log('Paused playback & review video');
+                }
+
+                // Pause edit video player
+                const editVideoPlayer = document.getElementById('edit-video-player');
+                if (editVideoPlayer && !editVideoPlayer.paused) {
+                    editVideoPlayer.pause();
+                    console.log('Paused edit video');
+                }
+            }
+
+            // Main navigation buttons
+            document.querySelectorAll('.nav-button').forEach(button => {
+                button.addEventListener('click', () => {
+                    const viewName = button.dataset.view;
+
+                    // Pause any playing videos when switching views
+                    pauseAllVideos();
+
+                    // Remove active state from ALL navigation buttons (main and sub)
+                    document.querySelectorAll('.nav-button').forEach(b => {
+                        b.classList.remove('active');
+                    });
+                    document.querySelectorAll('.nav-sub-button').forEach(b => {
+                        b.classList.remove('active');
+                    });
+
+                    // Add active state to clicked button
+                    button.classList.add('active');
+
+                    // Hide all views
+                    document.querySelectorAll('.view').forEach(v => {
+                        v.style.display = 'none';
+                    });
+
+                    // Show the requested view
+                    const targetView = document.getElementById(`${viewName}-view`);
+                    if (targetView) {
+                        // Use flex for recording view, block for others
+                        targetView.style.display = viewName === 'recording' ? 'flex' : 'block';
+                    }
+                });
+            });
+
+            // Sub-navigation buttons for settings
+            document.querySelectorAll('.nav-sub-button').forEach(button => {
+                button.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const viewName = button.dataset.subview;
+
+                    // Pause any playing videos when switching views
+                    pauseAllVideos();
+
+                    // Remove active state from ALL navigation buttons (main and sub)
+                    document.querySelectorAll('.nav-button').forEach(b => {
+                        b.classList.remove('active');
+                    });
+                    document.querySelectorAll('.nav-sub-button').forEach(b => {
+                        b.classList.remove('active');
+                    });
+
+                    // Add active state to clicked button
+                    button.classList.add('active');
+
+                    // Hide all views
+                    document.querySelectorAll('.view').forEach(v => {
+                        v.style.display = 'none';
+                    });
+
+                    // Map playback to post-view
+                    const targetId = viewName === 'playback' ? 'post-view' : `${viewName}-view`;
+                    const targetView = document.getElementById(targetId);
+                    if (targetView) {
+                        targetView.style.display = 'block';
+
+                        // Load upload state when switching to upload view
+                        if (viewName === 'upload' && window.uploadQueueController) {
+                            window.uploadQueueController.loadUploadState();
+                        }
+
+                        // Refresh filter templates when switching to post view (playback & review)
+                        if (viewName === 'playback' && window.postController) {
+                            window.postController.refreshTemplateList();
+                        }
+
+                        // Refresh filter templates when switching to filter editor
+                        if (viewName === 'filter-editor' && window.filterEditorController) {
+                            window.filterEditorController.loadTemplates();
+                        }
+                    }
+                });
+            });
+
+            // Hide all views initially - force display none on all views
+            document.querySelectorAll('.view').forEach(v => {
+                v.style.display = 'none';
+                v.classList.remove('active'); // Remove any active class
+                console.log(`Hiding view: ${v.id}`);
+            });
+
+            // Show ONLY the default view (recording)
+            const recordingView = document.getElementById('recording-view');
+            if (recordingView) {
+                recordingView.style.display = 'flex';
+                console.log('Showing recording view');
+            }
+            document.querySelector('.nav-button[data-view="recording"]')?.classList.add('active');
+        });
+    </script>
+</body>
+
+</html>

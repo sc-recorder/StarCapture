@@ -1,0 +1,107 @@
+{
+  "name": "sc-recorder",
+  "version": "1.0.0-beta1",
+  "description": "Star Citizen Gameplay Recorder",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron ."
+  },
+  "keywords": [
+    "star-citizen",
+    "recording",
+    "electron"
+  ],
+  "author": "",
+  "license": "GPLv3",
+  "build": {
+    "appId": "com.screcorder.app",
+    "productName": "StarCapture",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "win": {
+      "target": "portable",
+      "icon": "build/icon.ico"
+    },
+    "npmRebuild": false,
+    "buildDependenciesFromSource": false,
+    "asar": true,
+    "files": [
+      "**/*",
+      "oauth-config.json",
+      "!resources/obs-studio/**",
+      "!resources/ffmpeg/**",
+      "!templates/**",
+      "!logs/**",
+      "!*.log",
+      "!obs-config.json",
+      "!*.md",
+      "!.git/**",
+      "!.gitignore",
+      "!.claude/**",
+      "!CLAUDE.md",
+      "!build-portable.js",
+      "!create-source-distribution.js",
+      "!dist/**",
+      "!workers/**",
+      "!secrets/**",
+      "!oauth-proxy/**",
+      "!screenshots/**",
+      "!test/**",
+      "!references/**",
+      "!external references/**",
+      "!*.test.js",
+      "!*.spec.js",
+      "!.vscode/**",
+      "!.idea/**",
+      "!package-lock.json",
+      "!yarn.lock",
+      "!pnpm-lock.yaml",
+      "!.env",
+      "!.env.*",
+      "!recordings/**",
+      "!saved/**",
+      "!exports/**",
+      "!*.tmp",
+      "!*.bak",
+      "!*.swp",
+      "!.DS_Store",
+      "!Thumbs.db",
+      "!images/logo-400.gif",
+      "!images/logo.gif",
+      "!images/logo.ico",
+      "!images/logo.png",
+      "!images/original-logo.webp"
+    ],
+    "extraResources": [
+      {
+        "from": "config",
+        "to": "config",
+        "filter": [
+          "*.json"
+        ]
+      }
+    ]
+  },
+  "devDependencies": {
+    "archiver": "^7.0.1",
+    "electron": "^28.0.0",
+    "electron-icon-builder": "^2.0.1"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.888.0",
+    "@aws-sdk/lib-storage": "^3.888.0",
+    "@electron/remote": "^2.1.0",
+    "@google-cloud/local-auth": "^3.0.1",
+    "extract-zip": "^2.0.1",
+    "fluent-ffmpeg": "^2.1.3",
+    "google-auth-library": "^10.3.0",
+    "obs-websocket-js": "^5.0.6",
+    "systeminformation": "^5.27.8",
+    "tail": "^2.2.6",
+    "uiohook-napi": "^1.5.4",
+    "uuid": "^9.0.1"
+  }
+}

@@ -1,0 +1,874 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StarCapture Setup</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #0f1419 0%, #1a1f25 100%);
+            color: #e4e6e8;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            user-select: none;
+        }
+
+        .wizard-container {
+            background: rgba(25, 30, 35, 0.95);
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+            width: 90%;
+            max-width: 700px;
+            height: 90vh;
+            max-height: 700px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .wizard-header {
+            background: linear-gradient(90deg, #2563eb 0%, #1e40af 100%);
+            padding: 20px 30px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .wizard-header img {
+            height: 40px;
+        }
+
+        .wizard-header h1 {
+            font-size: 24px;
+            font-weight: 600;
+        }
+
+        .wizard-progress {
+            background: rgba(255, 255, 255, 0.1);
+            height: 4px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .wizard-progress-bar {
+            background: #3b82f6;
+            height: 100%;
+            width: 40%;
+            position: absolute;
+            animation: indeterminate 1.5s linear infinite;
+        }
+
+        @keyframes indeterminate {
+            0% {
+                left: -40%;
+            }
+            100% {
+                left: 100%;
+            }
+        }
+
+        .wizard-content {
+            flex: 1;
+            padding: 40px;
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+            overflow-x: hidden;
+        }
+
+        .wizard-step {
+            display: none;
+            flex-direction: column;
+            height: 100%;
+        }
+
+        .wizard-step.active {
+            display: flex;
+        }
+
+        .step-title {
+            font-size: 28px;
+            font-weight: 600;
+            margin-bottom: 15px;
+            color: #fff;
+        }
+
+        .step-description {
+            font-size: 16px;
+            color: #9ca3af;
+            margin-bottom: 30px;
+            line-height: 1.6;
+        }
+
+        .step-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .wizard-footer {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 20px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .btn {
+            padding: 10px 24px;
+            border-radius: 6px;
+            border: none;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .btn-primary {
+            background: #3b82f6;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #2563eb;
+        }
+
+        .btn-primary:disabled {
+            background: #4b5563;
+            cursor: not-allowed;
+            opacity: 0.5;
+        }
+
+        .btn-secondary {
+            background: transparent;
+            color: #9ca3af;
+            border: 1px solid #374151;
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.05);
+            border-color: #4b5563;
+        }
+
+        .btn-secondary:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+        }
+
+        /* Step-specific styles */
+        .check-status {
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .check-icon {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+        }
+
+        .check-icon.pending {
+            background: #374151;
+            color: #9ca3af;
+        }
+
+        .check-icon.checking {
+            background: #3b82f6;
+            animation: pulse 1s infinite;
+        }
+
+        .check-icon.success {
+            background: #10b981;
+            color: white;
+        }
+
+        .check-icon.error {
+            background: #ef4444;
+            color: white;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.5;
+            }
+        }
+
+        .check-text {
+            flex: 1;
+        }
+
+        .download-options {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            margin: 20px 0;
+        }
+
+        .download-option {
+            background: rgba(0, 0, 0, 0.2);
+            border: 2px solid transparent;
+            border-radius: 8px;
+            padding: 20px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .download-option:hover {
+            border-color: #3b82f6;
+            background: rgba(59, 130, 246, 0.1);
+        }
+
+        .download-option.selected {
+            border-color: #3b82f6;
+            background: rgba(59, 130, 246, 0.2);
+        }
+
+        .download-option h3 {
+            font-size: 18px;
+            margin-bottom: 8px;
+            color: #fff;
+        }
+
+        .download-option p {
+            font-size: 14px;
+            color: #9ca3af;
+        }
+
+        .download-progress {
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+            display: none;
+        }
+
+        .download-progress.active {
+            display: block;
+        }
+
+        .progress-bar {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+            height: 8px;
+            margin: 15px 0;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .progress-fill {
+            background: #3b82f6;
+            height: 100%;
+            width: 40%;
+            position: absolute;
+            animation: indeterminate-download 1.5s linear infinite;
+        }
+
+        .progress-fill.determinate {
+            animation: none;
+            position: static;
+            transition: width 0.3s ease;
+        }
+
+        @keyframes indeterminate-download {
+            0% {
+                left: -40%;
+            }
+            100% {
+                left: 100%;
+            }
+        }
+
+        .progress-text {
+            font-size: 14px;
+            color: #9ca3af;
+            text-align: center;
+        }
+
+        .device-list {
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 8px;
+            padding: 10px;
+            margin: 20px 0;
+        }
+
+        .device-item {
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .device-item:hover {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .device-item.selected {
+            background: rgba(59, 130, 246, 0.2);
+            border: 1px solid #3b82f6;
+        }
+
+        .device-icon {
+            width: 24px;
+            height: 24px;
+            opacity: 0.7;
+        }
+
+        .rescan-button {
+            background: transparent;
+            border: 1px solid #374151;
+            padding: 8px 16px;
+            border-radius: 6px;
+            color: #9ca3af;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+
+        .rescan-button:hover {
+            background: rgba(255, 255, 255, 0.05);
+            border-color: #4b5563;
+        }
+
+        .resolution-options {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            margin: 15px 0;
+        }
+
+        .resolution-option {
+            background: rgba(0, 0, 0, 0.2);
+            border: 2px solid transparent;
+            border-radius: 8px;
+            padding: 10px 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: center;
+        }
+
+        .resolution-option:hover {
+            border-color: #3b82f6;
+        }
+
+        .resolution-option.selected {
+            border-color: #3b82f6;
+            background: rgba(59, 130, 246, 0.2);
+        }
+
+        .resolution-option.detected {
+            border-color: #10b981;
+        }
+
+        .summary-section {
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .summary-section h3 {
+            font-size: 16px;
+            color: #3b82f6;
+            margin-bottom: 15px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .summary-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .summary-item:last-child {
+            border-bottom: none;
+        }
+
+        .summary-label {
+            color: #9ca3af;
+            font-size: 14px;
+        }
+
+        .summary-value {
+            color: #fff;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .step-indicator {
+            font-size: 12px;
+            color: #6b7280;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="wizard-container">
+        <div class="wizard-header">
+            <img src="images/logo-optimized.gif" alt="SC Recorder">
+            <h1>Setup Wizard</h1>
+        </div>
+
+        <div class="wizard-progress">
+            <div class="wizard-progress-bar" id="progress-bar"></div>
+        </div>
+
+        <div class="wizard-content">
+            <!-- Step 0: Welcome -->
+            <div class="wizard-step active" id="step-welcome">
+                <h2 class="step-title">Welcome to StarCapture!</h2>
+                <p class="step-description">
+                    Let's set up your recording environment for Star Citizen. This wizard will help you:
+                </p>
+                <div class="step-content">
+                    <ul style="font-size: 16px; line-height: 2; color: #d1d5db; margin-left: 20px;">
+                        <li>Install or verify OBS Studio (our recording backend)</li>
+                        <li>Detect your hardware encoders for optimal performance</li>
+                        <li>Configure your audio devices and voice applications</li>
+                        <li>Set up your recording resolution</li>
+                        <li>Generate optimized recording profiles</li>
+                    </ul>
+                    <p style="margin-top: 30px; color: #9ca3af;">
+                        This process will only take a few minutes and ensures the best recording experience.
+                    </p>
+                </div>
+            </div>
+
+            <!-- Step 1: Dependencies Installation Check -->
+            <div class="wizard-step" id="step-obs-check">
+                <h2 class="step-title">Required Dependencies</h2>
+                <p class="step-description">
+                    StarCapture needs OBS Studio for recording and FFmpeg for video editing. Let's install them.
+                </p>
+                <div class="step-content">
+                    <div class="check-status" id="obs-check-status">
+                        <div class="check-icon pending" id="obs-check-icon">○</div>
+                        <div class="check-text" id="obs-check-text">Checking for required dependencies...</div>
+                    </div>
+
+                    <div id="obs-download-options" style="display: none;">
+                        <div class="download-options" style="margin-top: 15px;">
+                            <div class="download-option" data-option="auto">
+                                <h3>Install Dependencies</h3>
+                                <p>Download and install OBS Studio and FFmpeg (~250MB total)</p>
+                            </div>
+                            <div class="download-option" data-option="manual">
+                                <h3>I'll Install Manually</h3>
+                                <p>Get instructions for manual installation</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="download-progress" id="download-progress">
+                        <div class="progress-text" id="download-status">Preparing download...</div>
+                        <div class="progress-bar">
+                            <div class="progress-fill" id="download-progress-fill"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 2: Hardware Detection -->
+            <div class="wizard-step" id="step-hardware">
+                <h2 class="step-title">Hardware Detection</h2>
+                <p class="step-description">
+                    Detecting your available hardware encoders for optimal recording performance.
+                </p>
+                <div class="step-content">
+                    <div class="check-status">
+                        <div class="check-icon checking" id="hardware-check-icon">○</div>
+                        <div class="check-text" id="hardware-check-text">Detecting hardware encoders...</div>
+                    </div>
+
+                    <!-- Compact codec display -->
+                    <div id="codec-grid" style="display: none; margin-top: 30px;">
+                        <div
+                            style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; max-width: 500px; margin: 0 auto;">
+                            <!-- AV1 -->
+                            <div
+                                style="background: rgba(0, 0, 0, 0.3); border-radius: 8px; padding: 20px; text-align: center; border: 1px solid rgba(255, 255, 255, 0.1);">
+                                <div style="font-size: 18px; font-weight: bold; color: #fff; margin-bottom: 10px;">AV1
+                                </div>
+                                <div id="av1-status" style="font-size: 32px;">❌</div>
+                                <div id="av1-vendor" style="font-size: 12px; color: #9ca3af; margin-top: 8px;">Not
+                                    Available</div>
+                            </div>
+
+                            <!-- H.265 -->
+                            <div
+                                style="background: rgba(0, 0, 0, 0.3); border-radius: 8px; padding: 20px; text-align: center; border: 1px solid rgba(255, 255, 255, 0.1);">
+                                <div style="font-size: 18px; font-weight: bold; color: #fff; margin-bottom: 10px;">H.265
+                                </div>
+                                <div id="h265-status" style="font-size: 32px;">❌</div>
+                                <div id="h265-vendor" style="font-size: 12px; color: #9ca3af; margin-top: 8px;">Not
+                                    Available</div>
+                            </div>
+
+                            <!-- H.264 -->
+                            <div
+                                style="background: rgba(0, 0, 0, 0.3); border-radius: 8px; padding: 20px; text-align: center; border: 1px solid rgba(255, 255, 255, 0.1);">
+                                <div style="font-size: 18px; font-weight: bold; color: #fff; margin-bottom: 10px;">H.264
+                                </div>
+                                <div id="h264-status" style="font-size: 32px;">❌</div>
+                                <div id="h264-vendor" style="font-size: 12px; color: #9ca3af; margin-top: 8px;">Not
+                                    Available</div>
+                            </div>
+                        </div>
+
+                        <!-- Software encoding warning (only shown if no hardware encoders) -->
+                        <div id="software-warning"
+                            style="display: none; margin-top: 20px; padding: 15px; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 8px;">
+                            <p style="color: #fca5a5; margin: 0; text-align: center;">
+                                ⚠️ No hardware encoders detected. Software encoding will be used (higher CPU usage).
+                            </p>
+                        </div>
+                    </div>
+
+                    <div style="text-align: center; margin-top: 30px;">
+                        <button class="rescan-button" id="rescan-encoders" style="display: none;">🔄 Scan Again</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 3: Audio Device Detection -->
+            <div class="wizard-step" id="step-audio">
+                <h2 class="step-title">Audio Configuration</h2>
+                <p class="step-description">
+                    Select your audio devices for recording game sound and voice communication.
+                </p>
+                <div class="step-content">
+                    <div style="margin-bottom: 25px;">
+                        <label style="display: block; font-size: 16px; margin-bottom: 8px; color: #fff;">
+                            🔊 Output Device (Speakers/Headphones)
+                        </label>
+                        <select id="output-device-select" style="
+                            width: 100%;
+                            padding: 12px;
+                            background: rgba(0, 0, 0, 0.3);
+                            border: 1px solid rgba(255, 255, 255, 0.1);
+                            border-radius: 6px;
+                            color: white;
+                            font-size: 14px;
+                            cursor: pointer;
+                        ">
+                            <option value="">Loading devices...</option>
+                        </select>
+                    </div>
+
+                    <div style="margin-bottom: 25px;">
+                        <label style="display: block; font-size: 16px; margin-bottom: 8px; color: #fff;">
+                            🎤 Input Device (Microphone) *
+                        </label>
+                        <select id="input-device-select" style="
+                            width: 100%;
+                            padding: 12px;
+                            background: rgba(0, 0, 0, 0.3);
+                            border: 1px solid rgba(255, 255, 255, 0.1);
+                            border-radius: 6px;
+                            color: white;
+                            font-size: 14px;
+                            cursor: pointer;
+                        ">
+                            <option value="">Loading devices...</option>
+                        </select>
+                    </div>
+
+                    <div style="text-align: center; margin-top: 30px;">
+                        <button class="rescan-button" id="rescan-audio">🔄 Rescan Devices</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 4: Voice Application Detection -->
+            <div class="wizard-step" id="step-voice-app">
+                <h2 class="step-title">Voice Application</h2>
+                <p class="step-description">
+                    Select your voice communication application for separate audio track recording.
+                </p>
+                <div class="step-content">
+                    <div style="margin-bottom: 20px;">
+                        <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                            <input type="checkbox" id="show-all-apps" style="width: 18px; height: 18px;">
+                            <span style="color: #9ca3af;">Show all applications</span>
+                        </label>
+                    </div>
+                    <div class="device-list" id="voice-app-list">
+                        <!-- Voice apps will be populated here -->
+                    </div>
+                    <div style="text-align: center; margin-top: 20px;">
+                        <button class="rescan-button" id="rescan-apps">🔄 Rescan Applications</button>
+                    </div>
+                    <p style="margin-top: 20px; color: #9ca3af; font-size: 14px;">
+                        Don't see your voice app? Make sure it's running and click Rescan.
+                    </p>
+                </div>
+            </div>
+
+            <!-- Step 5: Resolution Configuration -->
+            <div class="wizard-step" id="step-resolution">
+                <h2 class="step-title">Display & Resolution</h2>
+                <p class="step-description">
+                    Select which monitor Star Citizen is running on, then choose the recording resolution.
+                </p>
+                <div class="step-content">
+                    <div style="margin-bottom: 20px;">
+                        <label style="color: #9ca3af; font-size: 14px; display: block; margin-bottom: 10px;">Capture
+                            Display:</label>
+                        <select id="wizard-display-select"
+                            style="width: 100%; background: rgba(0,0,0,0.3); border: 1px solid #374151; padding: 10px; border-radius: 6px; color: white; font-size: 14px;">
+                            <option value="">Loading displays...</option>
+                        </select>
+                        <p style="font-size: 12px; color: #6b7280; margin-top: 8px;">
+                            Select the monitor where Star Citizen is displayed
+                        </p>
+                    </div>
+                    <div class="resolution-options" id="resolution-options">
+                        <div class="resolution-option detected" data-resolution="detected">
+                            <div style="font-size: 16px; font-weight: bold; color: #10b981;">Match Display</div>
+                            <div id="detected-resolution" style="margin-top: 2px; font-size: 12px;">2560×1440</div>
+                            <div style="font-size: 10px; color: #9ca3af; margin-top: 2px;">Selected Display</div>
+                        </div>
+                        <div class="resolution-option" data-resolution="1920x1080">
+                            <div style="font-size: 16px; font-weight: bold;">1080p</div>
+                            <div style="margin-top: 2px; font-size: 12px;">1920×1080</div>
+                        </div>
+                        <div class="resolution-option" data-resolution="2560x1440">
+                            <div style="font-size: 16px; font-weight: bold;">1440p</div>
+                            <div style="margin-top: 2px; font-size: 12px;">2560×1440</div>
+                        </div>
+                        <div class="resolution-option" data-resolution="3840x2160">
+                            <div style="font-size: 16px; font-weight: bold;">4K</div>
+                            <div style="margin-top: 2px; font-size: 12px;">3840×2160</div>
+                        </div>
+                    </div>
+                    <div style="margin-top: 20px;">
+                        <label style="color: #9ca3af; font-size: 14px;">Custom Resolution:</label>
+                        <div style="display: flex; gap: 10px; margin-top: 10px;">
+                            <input type="number" id="custom-width" placeholder="Width"
+                                style="background: rgba(0,0,0,0.3); border: 1px solid #374151; padding: 8px; border-radius: 6px; color: white; width: 120px;">
+                            <span style="color: #6b7280; align-self: center;">×</span>
+                            <input type="number" id="custom-height" placeholder="Height"
+                                style="background: rgba(0,0,0,0.3); border: 1px solid #374151; padding: 8px; border-radius: 6px; color: white; width: 120px;">
+                            <button class="btn btn-secondary" id="apply-custom"
+                                style="padding: 8px 16px;">Apply</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 6: Recording Folder -->
+            <div class="wizard-step" id="step-recording-folder">
+                <h2 class="step-title">Recording Location</h2>
+                <p class="step-description">
+                    Choose where to save your recorded videos.
+                </p>
+                <div class="step-content">
+                    <div
+                        style="background: rgba(255, 255, 255, 0.05); padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+                        <label style="display: block; margin-bottom: 10px; color: #9ca3af;">Recording Folder</label>
+                        <div style="display: flex; gap: 10px; align-items: center;">
+                            <input type="text" id="recording-folder-path" readonly style="
+                                flex: 1;
+                                padding: 10px;
+                                background: rgba(0, 0, 0, 0.3);
+                                border: 1px solid rgba(255, 255, 255, 0.1);
+                                border-radius: 6px;
+                                color: white;
+                                font-family: monospace;
+                                font-size: 14px;
+                            " placeholder="No folder selected">
+                            <button id="browse-recording-folder" style="
+                                padding: 10px 20px;
+                                background: #3b82f6;
+                                border: none;
+                                border-radius: 6px;
+                                color: white;
+                                cursor: pointer;
+                                font-size: 14px;
+                            ">Browse...</button>
+                        </div>
+                        <p style="margin-top: 10px; font-size: 12px; color: #6b7280;">
+                            Tip: Choose a location with plenty of free space. Videos can be large!
+                        </p>
+                    </div>
+
+                    <div
+                        style="background: rgba(59, 130, 246, 0.1); padding: 15px; border-radius: 8px; border: 1px solid rgba(59, 130, 246, 0.3);">
+                        <p style="margin: 0; color: #93c5fd; font-size: 14px;">
+                            ℹ️ Your recordings will be saved with timestamps in the format:<br>
+                            <code style="font-family: monospace;">SC_Recording_2025-09-09_143052.mkv</code>
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 7: Star Citizen Folder -->
+            <div class="wizard-step" id="step-sc-folder">
+                <h2 class="step-title">Star Citizen Installation</h2>
+                <p class="step-description">
+                    Select your Star Citizen installation folder to enable event detection from game logs.
+                </p>
+                <div class="step-content">
+                    <div
+                        style="background: rgba(255, 255, 255, 0.05); padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+                        <label style="display: block; margin-bottom: 10px; color: #9ca3af;">Star Citizen Folder</label>
+                        <div style="display: flex; gap: 10px; align-items: center;">
+                            <input type="text" id="sc-folder-path" readonly style="
+                                flex: 1;
+                                padding: 10px;
+                                background: rgba(0, 0, 0, 0.3);
+                                border: 1px solid rgba(255, 255, 255, 0.1);
+                                border-radius: 6px;
+                                color: white;
+                                font-family: monospace;
+                                font-size: 14px;
+                            " placeholder="No folder selected">
+                            <button id="browse-sc-folder" style="
+                                padding: 10px 20px;
+                                background: #3b82f6;
+                                border: none;
+                                border-radius: 6px;
+                                color: white;
+                                cursor: pointer;
+                                font-size: 14px;
+                            ">Browse...</button>
+                        </div>
+                        <p style="margin-top: 10px; font-size: 12px; color: #6b7280;">
+                            Select the folder containing LIVE and/or PTU folders (e.g., C:\Program Files\Roberts Space
+                            Industries\StarCitizen)
+                        </p>
+                    </div>
+
+                    <div id="sc-folder-status"
+                        style="display: none; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                        <p style="margin: 0;" id="sc-folder-status-text"></p>
+                    </div>
+
+                    <div
+                        style="background: rgba(59, 130, 246, 0.1); padding: 15px; border-radius: 8px; border: 1px solid rgba(59, 130, 246, 0.3);">
+                        <p style="margin: 0; color: #93c5fd; font-size: 14px;">
+                            ℹ️ This allows the recorder to detect in-game events like kills, deaths, and quantum
+                            jumps.<br>
+                            You can switch between LIVE and PTU builds from the main interface.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 8: Review & Confirm -->
+            <div class="wizard-step" id="step-review">
+                <h2 class="step-title">Review Configuration</h2>
+                <p class="step-description">
+                    Please review your settings before we complete the setup.
+                </p>
+                <div class="step-content">
+                    <div class="summary-section">
+                        <h3>Recording Setup</h3>
+                        <div class="summary-item">
+                            <span class="summary-label">OBS Installation</span>
+                            <span class="summary-value" id="summary-obs">✓ Installed</span>
+                        </div>
+                        <div class="summary-item">
+                            <span class="summary-label">Hardware Encoder</span>
+                            <span class="summary-value" id="summary-encoder">NVIDIA NVENC H.264</span>
+                        </div>
+                        <div class="summary-item">
+                            <span class="summary-label">Recording Resolution</span>
+                            <span class="summary-value" id="summary-resolution">2560×1440</span>
+                        </div>
+                    </div>
+
+                    <div class="summary-section">
+                        <h3>Audio Configuration</h3>
+                        <div class="summary-item">
+                            <span class="summary-label">Game Audio</span>
+                            <span class="summary-value">Star Citizen (Auto-detected)</span>
+                        </div>
+                        <div class="summary-item">
+                            <span class="summary-label">Voice Application</span>
+                            <span class="summary-value" id="summary-voice-app">Discord</span>
+                        </div>
+                        <div class="summary-item">
+                            <span class="summary-label">Microphone</span>
+                            <span class="summary-value" id="summary-microphone">Default Microphone</span>
+                        </div>
+                    </div>
+
+                    <div class="summary-section">
+                        <h3>Storage & Game</h3>
+                        <div class="summary-item">
+                            <span class="summary-label">Recording Folder</span>
+                            <span class="summary-value" id="summary-recording-folder">Not selected</span>
+                        </div>
+                        <div class="summary-item">
+                            <span class="summary-label">Star Citizen Location</span>
+                            <span class="summary-value" id="summary-sc-folder">Not selected</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 9: Setup Complete -->
+            <div class="wizard-step" id="step-complete">
+                <h2 class="step-title">Setup Complete!</h2>
+                <p class="step-description">
+                    Everything is configured and ready to go!
+                </p>
+                <div class="step-content" style="text-align: center; padding: 40px 20px;">
+                    <div style="font-size: 48px; margin-bottom: 30px;">🎉</div>
+                    <p style="color: #fff; font-size: 18px; line-height: 1.6; margin-bottom: 30px;">
+                        Click <strong>Finish</strong> and restart the application to get started.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <div class="wizard-footer">
+            <div class="step-indicator" id="step-indicator">Step 1 of 7</div>
+            <div>
+                <button class="btn btn-secondary" id="btn-back" disabled>Back</button>
+                <button class="btn btn-primary" id="btn-next">Next</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="setup-wizard.js"></script>
+</body>
+
+</html>

@@ -1,0 +1,40 @@
+{
+  "twitch": {
+    "clientId": "YOUR_TWITCH_CLIENT_ID_HERE",
+    "redirectUri": "http://localhost:3000/auth/twitch/callback",
+    "scopes": ["channel:manage:videos", "user:read:email", "chat:read", "chat:edit"],
+    "authMethod": "PKCE",
+    "_comment": "Get your Twitch app ID from https://dev.twitch.tv/console/apps"
+  },
+  "google": {
+    "clientId": "YOUR_GOOGLE_CLIENT_ID_HERE.apps.googleusercontent.com",
+    "redirectUri": "http://localhost:3000/auth/google/callback",
+    "scopes": ["https://www.googleapis.com/auth/youtube.upload"],
+    "authMethod": "PKCE",
+    "_comment": "Get your Google OAuth 2.0 Client ID from https://console.cloud.google.com/"
+  },
+  "_instructions": {
+    "security": "This app uses PKCE (Proof Key for Code Exchange) - no client secrets needed!",
+    "setup": [
+      "1. Copy this file to 'oauth-config.json'",
+      "2. Replace YOUR_TWITCH_CLIENT_ID_HERE with your Twitch Client ID",
+      "3. Replace YOUR_GOOGLE_CLIENT_ID_HERE with your Google Client ID",
+      "4. That's it! No secrets required with PKCE flow"
+    ],
+    "twitch_setup": [
+      "1. Go to https://dev.twitch.tv/console/apps",
+      "2. Click 'Register Your Application'",
+      "3. Set OAuth Redirect URL to the redirectUri above",
+      "4. Copy the Client ID (NOT the secret)"
+    ],
+    "google_setup": [
+      "1. Go to https://console.cloud.google.com/",
+      "2. Create a new project or select existing",
+      "3. Enable YouTube Data API v3",
+      "4. Create OAuth 2.0 Client ID (Web application type)",
+      "5. Add the redirectUri above to Authorized redirect URIs",
+      "6. Copy the Client ID (NOT the secret)"
+    ],
+    "note": "Client IDs are public and safe to share. PKCE generates dynamic secrets at runtime."
+  }
+}
