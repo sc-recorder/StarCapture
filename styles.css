@@ -1936,13 +1936,14 @@ video::-webkit-media-controls-timeline {
 /* Current Event Display */
 /* Event display in header */
 .header .current-event-display {
-    flex: 1;
-    max-width: 600px;
-    margin: 0 20px;
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    max-width: 425px;
     background: linear-gradient(135deg, rgba(74, 222, 128, 0.1) 0%, rgba(74, 222, 128, 0.05) 100%);
     border: 1px solid rgba(74, 222, 128, 0.3);
-    border-radius: 12px;
-    padding: 12px 20px;
+    border-radius: 6px;
+    padding: 8px 16px;
     animation: fadeInSlide 0.4s ease;
     backdrop-filter: blur(10px);
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
@@ -1957,30 +1958,25 @@ video::-webkit-media-controls-timeline {
 .event-details {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 3px;
     align-items: center;
     text-align: center;
 }
 
 .event-timestamp {
-    font-family: 'Courier New', monospace;
-    color: var(--accent);
-    font-size: 11px;
-    font-weight: 600;
-    opacity: 0.8;
-    letter-spacing: 1px;
+    display: none; /* Hide timestamp to save space */
 }
 
 .event-name {
     color: #fff;
     font-weight: 600;
-    font-size: 15px;
+    font-size: 14px;
     text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
 }
 
 .event-message {
     color: var(--text-secondary);
-    font-size: 13px;
+    font-size: 12px;
     max-width: 400px;
     white-space: nowrap;
     overflow: hidden;

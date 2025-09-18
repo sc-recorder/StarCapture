@@ -308,6 +308,125 @@
         "amount": { "group": 2 }
       },
       "message": "Bounty placed: {amount} UEC"
+    },
+    {
+      "id": "insurance_claim_request",
+      "category": "system",
+      "name": "Insurance Claim Request",
+      "pattern": "<(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z)>\\s*\\[Notice\\]\\s*<CWallet::ProcessClaimToNextStep>\\s*New Insurance Claim Request - entitlementURN: ([^,]+), requestId : (\\d+)",
+      "description": "Detects when a player files an insurance claim for a destroyed ship",
+      "severity": "medium",
+      "fields": {
+        "timestamp": { "group": 1, "transform": "parseTimestamp" },
+        "entitlementURN": { "group": 2 },
+        "requestId": { "group": 3 }
+      },
+      "message": "Insurance claim filed (Request #{requestId})"
+    },
+    {
+      "id": "insurance_claim_complete",
+      "category": "system",
+      "name": "Insurance Claim Complete",
+      "pattern": "<(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z)>\\s*\\[Notice\\]\\s*<CWallet::RmMulticastOnProcessClaimCallback>\\s*Claim Complete - entitlementURN: ([^,]+), result: (\\d+),\\s*requestId: (\\d+)",
+      "description": "Detects when an insurance claim is completed",
+      "severity": "low",
+      "fields": {
+        "timestamp": { "group": 1, "transform": "parseTimestamp" },
+        "entitlementURN": { "group": 2 },
+        "result": { "group": 3 },
+        "requestId": { "group": 4 }
+      },
+      "message": "Insurance claim completed (Request #{requestId})"
+    },
+    {
+      "id": "fatal_collision",
+      "category": "vehicle",
+      "name": "Fatal Collision",
+      "pattern": "<(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z)>\\s*\\[Notice\\]\\s*<FatalCollision>\\s*Fatal Collision occured for vehicle ([^\\[]+)\\[Part: ([^,]+), Pos: x: ([^,]+), y: ([^,]+), z: ([^,]+), Zone: ([^,]+), PlayerPilot: (\\d+)\\] after hitting entity: ([^\\[]+)",
+      "description": "Detects vehicle crashes with detailed collision information",
+      "severity": "high",
+      "fields": {
+        "timestamp": { "group": 1, "transform": "parseTimestamp" },
+        "vehicle": { "group": 2, "transform": "cleanVehicleName" },
+        "part": { "group": 3 },
+        "posX": { "group": 4 },
+        "posY": { "group": 5 },
+        "posZ": { "group": 6 },
+        "zone": { "group": 7, "transform": "cleanZoneName" },
+        "playerPilot": { "group": 8 },
+        "entityHit": { "group": 9 }
+      },
+      "message": "{vehicle} crashed into {entityHit}"
+    },
+    {
+      "id": "mission_start_notification",
+      "category": "mission",
+      "name": "Mission Accepted",
+      "pattern": "<(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z)>\\s*\\[Notice\\]\\s*<CSCPlayerMissionLog::MissionStartCommsNotification>.*?ContractId: \\[([^\\]]+)\\]\\.\\s*MissionId: ([^\\s]+)",
+      "description": "Detects when a player accepts/starts a mission",
+      "severity": "high",
+      "fields": {
+        "timestamp": { "group": 1, "transform": "parseTimestamp" },
+        "contractId": { "group": 2 },
+        "missionId": { "group": 3 }
+      },
+      "message": "Mission accepted"
+    },
+    {
+      "id": "mission_end",
+      "category": "mission",
+      "name": "Mission Ended",
+      "pattern": "<(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z)>\\s*\\[Notice\\]\\s*<EndMission>\\s*Ending mission for player\\.\\s*MissionId\\[([^\\]]+)\\]\\s*Player\\[([^\\]]+)\\]\\s*PlayerId\\[([^\\]]+)\\]\\s*CompletionType\\[([^\\]]+)\\]\\s*Reason\\[([^\\]]+)\\]",
+      "description": "Detects when a mission ends with completion type",
+      "severity": "medium",
+      "fields": {
+        "timestamp": { "group": 1, "transform": "parseTimestamp" },
+        "missionId": { "group": 2 },
+        "player": { "group": 3 },
+        "playerId": { "group": 4 },
+        "completionType": { "group": 5 },
+        "reason": { "group": 6 }
+      },
+      "message": "Mission {completionType}: {reason}"
+    },
+    {
+      "id": "mission_objective_marker_added",
+      "category": "mission",
+      "name": "Mission Waypoint Added",
+      "pattern": "<(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z)>\\s*\\[Notice\\]\\s*<CObjectiveMarkerComponent::AddToPlayerDataBank>\\s*([^\\[]+)\\[([^\\]]+)\\] - Added to DataBank of Player: ([^\\[]+)\\[([^\\]]+)\\] - ZonePos: x: ([^,]+), y: ([^,]+), z: ([^,]+), missionId\\[([^\\]]+)\\], objectiveId\\[([^\\]]+)\\]",
+      "description": "Detects when a mission waypoint/objective marker is added",
+      "severity": "low",
+      "fields": {
+        "timestamp": { "group": 1, "transform": "parseTimestamp" },
+        "markerName": { "group": 2 },
+        "markerId": { "group": 3 },
+        "player": { "group": 4 },
+        "playerId": { "group": 5 },
+        "posX": { "group": 6 },
+        "posY": { "group": 7 },
+        "posZ": { "group": 8 },
+        "missionId": { "group": 9 },
+        "objectiveId": { "group": 10 }
+      },
+      "message": "Mission waypoint added"
+    },
+    {
+      "id": "mission_objective_marker_removed",
+      "category": "mission",
+      "name": "Mission Waypoint Removed",
+      "pattern": "<(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z)>\\s*\\[Notice\\]\\s*<CObjectiveMarkerComponent::RemoveFromPlayerDataBank>\\s*([^\\[]+)\\[([^\\]]+)\\] - Removed from DataBank of Player: ([^\\[]+)\\[([^\\]]+)\\].*?missionId\\[([^\\]]+)\\], objectiveId\\[([^\\]]+)\\]",
+      "description": "Detects when a mission waypoint/objective marker is removed",
+      "severity": "low",
+      "fields": {
+        "timestamp": { "group": 1, "transform": "parseTimestamp" },
+        "markerName": { "group": 2 },
+        "markerId": { "group": 3 },
+        "player": { "group": 4 },
+        "playerId": { "group": 5 },
+        "missionId": { "group": 6 },
+        "objectiveId": { "group": 7 }
+      },
+      "message": "Mission waypoint removed"
     }
   ]
 }

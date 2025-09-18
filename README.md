@@ -1,14 +1,13 @@
 # StarCapture Source Distribution
 
-Version 1.0.0-beta1
+Version 1.0.0-beta2
 
 ## Requirements
 
 - Windows 10/11 (64-bit)
 - Node.js 18.x or higher
 - npm 8.x or higher
-- 4GB RAM minimum
-- DirectX 11 compatible GPU
+- A PC that can run Star Citizen
 
 ## Installation
 
@@ -35,7 +34,7 @@ npm run dist:win
 npm run portable
 ```
 
-The executable will be in dist/StarCapture-v1.0.0-beta1/
+The executable will be in dist/StarCapture-v1.0.0-beta2/
 
 ## License
 
@@ -43,4 +42,4 @@ GPL v3 - See LICENSE file for details
 
 ## Support
 
-Report issues at: https://github.com/anthropics/starcapture/issues
+Report issues at: https://github.com/sc-recordder/starcapture/issues
