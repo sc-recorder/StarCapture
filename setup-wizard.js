@@ -450,9 +450,11 @@ class SetupWizard {
         checkIcon.className = 'check-icon checking';
         checkText.textContent = 'Checking for required dependencies...';
         
-        // Check if OBS exists in resources/obs-studio/
-        const obsPath = path.join(process.cwd(), 'resources', 'obs-studio', 'bin', '64bit', 'obs64.exe');
-        const ffmpegPath = path.join(process.cwd(), 'resources', 'ffmpeg', 'ffmpeg.exe');
+        // Always use LOCALAPPDATA for downloaded resources
+        const localAppData = process.env.LOCALAPPDATA || process.env.APPDATA;
+        const resourcesBase = path.join(localAppData, 'sc-recorder', 'resources');
+        const obsPath = path.join(resourcesBase, 'obs-studio', 'bin', '64bit', 'obs64.exe');
+        const ffmpegPath = path.join(resourcesBase, 'ffmpeg', 'ffmpeg.exe');
         
         let hasOBS = false;
         let hasFFmpeg = false;

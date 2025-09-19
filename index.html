@@ -229,14 +229,14 @@
                             <button id="browse-recordings-btn" class="btn btn-primary">Browse Recordings</button>
                             <button id="load-video-btn" class="btn btn-secondary">Manual Load Video</button>
                             <button id="load-events-btn" class="btn btn-secondary">Manual Load Events</button>
-                            <button id="save-recording-btn" class="btn btn-success" disabled title="Move current recording to saved folder">
+                            <button id="save-recording-btn" class="btn btn-secondary" disabled title="Moves the video and events file to the saved folder, preventing auto cleanup from removing them">
                                 <span>💾</span> Save Recording
                             </button>
                             <button id="export-clips-btn" class="btn btn-secondary" disabled>Export Clips</button>
-                            <button id="upload-video-btn" class="btn btn-success" disabled title="Upload video to cloud storage">
+                            <button id="upload-video-btn" class="btn btn-secondary" disabled title="Upload video to cloud storage">
                                 <span>☁️</span> Upload
                             </button>
-                            <button id="save-filtered-btn" class="btn btn-primary" disabled>Export Filtered
+                            <button id="save-filtered-btn" class="btn btn-secondary" disabled title="Creates a new JSON event file with only the displayed events. The original events file will be saved as a backup">Export Filtered
                                 Events</button>
                         </div>
                     </div>
@@ -672,7 +672,7 @@
                                 <button id="upload-browse-recordings-btn" class="btn btn-primary">
                                     <span>📁</span> Browse Recordings
                                 </button>
-                                <button id="start-queue-btn" class="btn btn-success">
+                                <button id="start-queue-btn" class="btn btn-secondary">
                                     <span>▶️</span> Start Queue
                                 </button>
                                 <button id="pause-queue-btn" class="btn btn-warning" style="display: none;">
@@ -704,7 +704,15 @@
                 <div id="edit-video-view" class="view" style="display: none;">
                     <!-- Full view loading overlay -->
                     <div class="full-view-overlay" id="edit-video-overlay" style="display: none;">
-                        <div class="overlay-message">Loading assets...</div>
+                        <div class="overlay-content">
+                            <div class="overlay-message">Loading assets...</div>
+                            <div class="overlay-progress" id="edit-overlay-progress" style="display: none;">
+                                <div class="progress-bar">
+                                    <div class="progress-fill" id="edit-progress-fill" style="width: 0%"></div>
+                                </div>
+                                <div class="progress-text" id="edit-progress-text">0%</div>
+                            </div>
+                        </div>
                     </div>
                     <div class="post-header">
                         <div class="edit-mode-toggle">

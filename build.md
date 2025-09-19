@@ -13,8 +13,17 @@ npm run portable    # Create portable package with icon
 # Build Source Distribution (for developers)
 npm run source:dist # Creates sc-recorder-source-dist.zip
 
-# Create Release ZIP
-npm run release     # Builds everything and creates final ZIP
+# Create Release (run these separately due to module conflicts)
+npm run dist:win    # Step 1: Build with electron-builder
+npm run portable    # Step 2: Create portable package
+npm run source:dist # Step 3: Create source distribution
+
+# Publish to S3 (after building)
+npm run publish:all         # Publish all release files
+npm run publish:zip         # Publish portable ZIP only
+npm run publish:source      # Publish source ZIP only
+npm run publish:exe         # Publish installer EXE only
+npm run publish:log-patterns # Publish log patterns config only
 ```
 
 ## Build Process
@@ -64,3 +73,85 @@ This creates `sc-recorder-source-dist.zip` containing:
 - Node.js 18.x or higher
 - npm 8.x or higher
 - Windows 10/11 (64-bit)
+
+## Publishing to S3
+
+### One-Time Setup
+
+1. **Configure S3 credentials**
+   ```bash
+   # Copy the template
+   cp secrets/s3-config.example.json secrets/s3-config.json
+
+   # Edit with your S3 details
+   # - endpoint: Your S3-compatible endpoint
+   # - baseUrl: Public URL for downloads
+   # - bucket: Your bucket name
+   # - accessKeyId/secretAccessKey: Your credentials
+   ```
+
+2. **Install dependencies** (if not already done)
+   ```bash
+   npm install
+   ```
+
+### Publishing Process
+
+1. **Build the releases first** (run separately due to module conflicts)
+   ```bash
+   npm run dist:win     # Build with electron-builder
+   npm run portable     # Create portable package
+   npm run source:dist  # Create source distribution
+
+   # Note: These must be run as separate commands, not chained
+   ```
+
+2. **Publish to S3**
+   ```bash
+   # Publish everything (recommended)
+   npm run publish:all
+
+   # Or publish specific files
+   npm run publish:zip          # Portable ZIP only
+   npm run publish:source       # Source code ZIP only
+   npm run publish:exe          # Windows installer only
+   npm run publish:log-patterns # SC log patterns config only
+   ```
+
+3. **Force overwrite existing files** (if needed)
+   ```bash
+   node scripts/publish-to-s3.js all --force
+   ```
+
+### What Gets Published
+
+Files are organized in S3 by version:
+- `releases/v{version}/SC-Recorder-{version}-win-portable.zip`
+- `releases/v{version}/SC-Recorder-{version}-source.zip`
+- `releases/v{version}/SC-Recorder-Setup-{version}.exe`
+- `configs/sc-log-patterns-v{version}.json`
+
+The script will:
+- Check if files already exist (skip unless --force)
+- Calculate MD5 checksums
+- Show upload progress
+- Generate public download URLs
+- Display file sizes and metadata
+
+### Typical Workflow
+
+```bash
+# Complete release and publish workflow
+# Build steps (must be run separately)
+npm run dist:win     # Step 1: Build with electron-builder
+npm run portable     # Step 2: Create portable package
+npm run source:dist  # Step 3: Create source distribution
+
+# Then publish to S3
+npm run publish:all  # Upload all files to S3
+
+# The script will show URLs like:
+# 🔗 Public URL: https://your-cdn.com/bucket/releases/v1.0.0/SC-Recorder-1.0.0-win-portable.zip
+```
+
+**Important:** The build commands must be run separately (not chained with && or &) due to module conflicts.

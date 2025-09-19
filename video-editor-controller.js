@@ -1711,10 +1711,10 @@ class VideoEditorController {
                 console.log('Multiple audio tracks detected, extracting...');
                 this.hasMultipleTracks = true;
 
-                // Show extraction progress
-                this.showLoadingOverlay('Extracting audio tracks...');
+                // Show initial extraction message
+                this.showLoadingOverlay('Starting audio extraction... (0%)');
 
-                // Listen for progress updates
+                // Listen for progress updates from backend
                 const progressHandler = (event, progress) => {
                     if (progress.message) {
                         this.showLoadingOverlay(progress.message);
@@ -1821,6 +1821,22 @@ class VideoEditorController {
             if (messageEl) {
                 messageEl.textContent = message;
             }
+
+            // Parse progress from message if it contains percentage
+            const progressMatch = message.match(/\((\d+)%\)/);
+            const progressEl = document.getElementById('edit-overlay-progress');
+            const progressFill = document.getElementById('edit-progress-fill');
+            const progressText = document.getElementById('edit-progress-text');
+
+            if (progressMatch && progressEl && progressFill && progressText) {
+                const progress = parseInt(progressMatch[1]);
+                progressEl.style.display = 'block';
+                progressFill.style.width = `${progress}%`;
+                progressText.textContent = `${progress}%`;
+            } else if (progressEl) {
+                // Hide progress if no percentage in message
+                progressEl.style.display = 'none';
+            }
         }
     }
 
@@ -1831,6 +1847,12 @@ class VideoEditorController {
         if (this.videoOverlay) {
             this.videoOverlay.classList.add('hidden');
             this.videoOverlay.style.display = 'none';
+
+            // Reset progress display
+            const progressEl = document.getElementById('edit-overlay-progress');
+            if (progressEl) {
+                progressEl.style.display = 'none';
+            }
         }
     }
 
@@ -1962,7 +1984,14 @@ class VideoEditorController {
                     const success = await this.webAudioManager.loadTrack(
                         `track-${track.trackIndex}`,
                         track.path,
-                        track.label
+                        track.label,
+                        (message, progress) => {
+                            // Update loading overlay with decode progress
+                            const progressText = progress !== undefined
+                                ? `${message} (${Math.round(progress * 100)}%)`
+                                : message;
+                            this.showLoadingOverlay(progressText);
+                        }
                     );
 
                     if (!success) {

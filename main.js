@@ -7,6 +7,7 @@ const SupervisorModule = require('./lib/supervisor-module');
 const ConfigManager = require('./lib/config-manager');
 const OBSTemplateGenerator = require('./lib/obs-template-generator');
 const OBSCapabilityDetector = require('./lib/obs-capability-detector');
+const PatternUpdater = require('./lib/pattern-updater');
 
 // Add handlers for uncaught errors to prevent crashes
 process.on('uncaughtException', (error) => {
@@ -322,8 +323,10 @@ async function initializeApp() {
     }
 
     // Check if OBS and FFmpeg binaries exist
-    const obsPath = path.join(process.cwd(), 'resources', 'obs-studio', 'bin', '64bit', 'obs64.exe');
-    const ffmpegPath = path.join(process.cwd(), 'resources', 'ffmpeg', 'ffmpeg.exe');
+    const localAppData = process.env.LOCALAPPDATA || process.env.APPDATA;
+    const resourcesBase = path.join(localAppData, 'sc-recorder', 'resources');
+    const obsPath = path.join(resourcesBase, 'obs-studio', 'bin', '64bit', 'obs64.exe');
+    const ffmpegPath = path.join(resourcesBase, 'ffmpeg', 'ffmpeg.exe');
 
     try {
       await fs.access(obsPath);
@@ -473,11 +476,104 @@ async function initializeApp() {
   }
 }
 
+// Check for pattern updates during initialization
+async function checkPatternUpdates() {
+  if (splashWindow) {
+    splashWindow.webContents.send('splash-progress', {
+      message: 'Checking for pattern updates...',
+      progress: 10
+    });
+  }
+
+  try {
+    const updater = new PatternUpdater();
+    const updateInfo = await updater.checkForUpdate();
+
+    if (updateInfo) {
+      // Check if patterns are incompatible with app version
+      if (updateInfo.incompatible) {
+        console.error(`Cannot restore patterns: v${updateInfo.newVersion} incompatible - app supports v${updateInfo.supportedVersion}`);
+
+        if (splashWindow) {
+          splashWindow.webContents.send('splash-progress', {
+            message: `Pattern v${updateInfo.newVersion} incompatible - app supports v${updateInfo.supportedVersion}`,
+            progress: 15
+          });
+        }
+
+        // Show dialog warning after a delay
+        setTimeout(() => {
+          const { dialog } = require('electron');
+          dialog.showErrorBox(
+            'Pattern File Incompatible',
+            `The pattern file is missing and cannot be restored.\n\n` +
+            `The online patterns are version ${updateInfo.newVersion}.\n` +
+            `This version of SC Recorder supports patterns v${updateInfo.supportedVersion}.\n\n` +
+            `The patterns are incompatible. Please check for an app update or contact support.`
+          );
+        }, 2000);
+
+        // Continue loading but patterns will be missing
+      } else if (updateInfo.isMissing) {
+        console.log('Pattern file missing, downloading from remote...');
+
+        if (splashWindow) {
+          splashWindow.webContents.send('splash-progress', {
+            message: `Downloading pattern file v${updateInfo.newVersion}...`,
+            progress: 15
+          });
+        }
+
+        const success = await updater.applyUpdate(updateInfo);
+        if (success) {
+          console.log('Pattern file restored successfully');
+          // Update config tracking
+          if (configManager) {
+            await configManager.updatePatternTracking(updateInfo.newVersion);
+          }
+        }
+      } else {
+        console.log(`Pattern update available: ${updateInfo.currentVersion} → ${updateInfo.newVersion}`);
+
+        if (splashWindow) {
+          splashWindow.webContents.send('splash-progress', {
+            message: `Updating patterns to v${updateInfo.newVersion}...`,
+            progress: 15
+          });
+        }
+
+        const success = await updater.applyUpdate(updateInfo);
+        if (success) {
+          console.log('Pattern update applied successfully');
+          // Update config tracking
+          if (configManager) {
+            await configManager.updatePatternTracking(updateInfo.newVersion);
+          }
+        }
+      }
+    } else {
+      console.log('Patterns are up to date');
+    }
+  } catch (error) {
+    console.log('Pattern update check failed (non-blocking):', error.message);
+  }
+
+  if (splashWindow) {
+    splashWindow.webContents.send('splash-progress', {
+      message: 'Loading configuration...',
+      progress: 20
+    });
+  }
+}
+
 app.whenReady().then(async () => {
   // Register protocol handler for OAuth callbacks
   registerProtocolHandler();
 
   await createSplashWindow();
+
+  // Check for pattern updates before initialization
+  await checkPatternUpdates();
 
   const initSuccess = await initializeApp();
 
@@ -1594,8 +1690,8 @@ ipcMain.handle('detect-ffmpeg-capabilities', async () => {
 
     const capabilities = await detector.detectCapabilities();
 
-    // Save to config
-    const configPath = app.getPath('userData');
+    // Always save to APPDATA for config
+    const configPath = path.join(process.env.APPDATA || process.env.HOME, 'sc-recorder');
     await detector.saveCapabilities(configPath);
 
     return { success: true, capabilities };
@@ -1619,12 +1715,11 @@ ipcMain.handle('init-audio-track-manager', async () => {
     console.log('[Main] ConfigManager available:', !!configManager);
     console.log('[Main] Config loaded:', !!config);
 
-    // Use the same path resolution as OBS - get base directory correctly for packaged apps
-    const baseDir = app.isPackaged
-      ? path.dirname(app.getPath('exe'))
-      : __dirname;
-    const ffmpegPath = config.ffmpegPath || path.join(baseDir, 'resources', 'ffmpeg', 'ffmpeg.exe');
-    const ffprobePath = config.ffprobePath || path.join(baseDir, 'resources', 'ffmpeg', 'ffprobe.exe');
+    // Use LOCALAPPDATA for downloaded resources
+    const localAppData = process.env.LOCALAPPDATA || process.env.APPDATA;
+    const resourcesBase = path.join(localAppData, 'sc-recorder', 'resources');
+    const ffmpegPath = config.ffmpegPath || path.join(resourcesBase, 'ffmpeg', 'ffmpeg.exe');
+    const ffprobePath = config.ffprobePath || path.join(resourcesBase, 'ffmpeg', 'ffprobe.exe');
 
     console.log('[Main] Initializing AudioTrackManager with paths:', { ffmpegPath, ffprobePath });
     await audioTrackManager.initialize(ffmpegPath, ffprobePath);
@@ -1755,11 +1850,10 @@ ipcMain.handle('cleanup-audio-tracks', async () => {
 ipcMain.handle('get-ffmpeg-path', async () => {
   const config = configManager ? configManager.get() : {};
   // Use the same path resolution as OBS - get base directory correctly for packaged apps
-  const baseDir = app.isPackaged
-    ? path.dirname(app.getPath('exe'))
-    : __dirname;
-  const ffmpegPath = config.ffmpegPath || path.join(baseDir, 'resources', 'ffmpeg', 'ffmpeg.exe');
-  const ffprobePath = config.ffprobePath || path.join(baseDir, 'resources', 'ffmpeg', 'ffprobe.exe');
+  const localAppData = process.env.LOCALAPPDATA || process.env.APPDATA;
+  const resourcesBase = path.join(localAppData, 'sc-recorder', 'resources');
+  const ffmpegPath = config.ffmpegPath || path.join(resourcesBase, 'ffmpeg', 'ffmpeg.exe');
+  const ffprobePath = config.ffprobePath || path.join(resourcesBase, 'ffmpeg', 'ffprobe.exe');
 
   return { ffmpegPath, ffprobePath };
 });
@@ -1854,12 +1948,11 @@ ipcMain.handle('export-video-fluent', async (event, options) => {
 
     // Get FFmpeg path
     const config = configManager ? configManager.get() : {};
-    // Use the same path resolution as OBS - get base directory correctly for packaged apps
-    const baseDir = app.isPackaged
-      ? path.dirname(app.getPath('exe'))
-      : __dirname;
-    const ffmpegPath = config.ffmpegPath || path.join(baseDir, 'resources', 'ffmpeg', 'ffmpeg.exe');
-    const ffprobePath = config.ffprobePath || path.join(baseDir, 'resources', 'ffmpeg', 'ffprobe.exe');
+    // Use LOCALAPPDATA for downloaded resources
+    const localAppData = process.env.LOCALAPPDATA || process.env.APPDATA;
+    const resourcesBase = path.join(localAppData, 'sc-recorder', 'resources');
+    const ffmpegPath = config.ffmpegPath || path.join(resourcesBase, 'ffmpeg', 'ffmpeg.exe');
+    const ffprobePath = config.ffprobePath || path.join(resourcesBase, 'ffmpeg', 'ffprobe.exe');
 
     console.log('Using FFmpeg:', ffmpegPath);
     console.log('Using FFprobe:', ffprobePath);
@@ -2619,8 +2712,11 @@ ipcMain.on('download-dependencies', async (event) => {
   const OBS_DOWNLOAD_URL = 'https://github.com/obsproject/obs-studio/releases/download/31.1.0/OBS-Studio-31.1.0-Windows-x64.zip';
   const FFMPEG_DOWNLOAD_URL = 'https://github.com/GyanD/codexffmpeg/releases/download/8.0/ffmpeg-8.0-essentials_build.zip';
 
-  const obsDir = path.join(process.cwd(), 'resources', 'obs-studio');
-  const ffmpegDir = path.join(process.cwd(), 'resources', 'ffmpeg');
+  // Use LOCALAPPDATA for downloaded resources
+  const localAppData = process.env.LOCALAPPDATA || process.env.APPDATA;
+  const resourcesBase = path.join(localAppData, 'sc-recorder', 'resources');
+  const obsDir = path.join(resourcesBase, 'obs-studio');
+  const ffmpegDir = path.join(resourcesBase, 'ffmpeg');
   const obsZipPath = path.join(app.getPath('temp'), 'obs-studio.zip');
   const ffmpegZipPath = path.join(app.getPath('temp'), 'ffmpeg.zip');
 
@@ -2748,10 +2844,10 @@ ipcMain.on('download-dependencies', async (event) => {
         progress: (currentStep / totalSteps) * 100
       });
 
-      await extract(ffmpegZipPath, { dir: path.join(process.cwd(), 'resources') });
+      await extract(ffmpegZipPath, { dir: resourcesBase });
 
       // Move ffmpeg files from the extracted folder to our ffmpeg directory
-      const extractedFolder = path.join(process.cwd(), 'resources', 'ffmpeg-8.0-essentials_build');
+      const extractedFolder = path.join(resourcesBase, 'ffmpeg-8.0-essentials_build');
       const binPath = path.join(extractedFolder, 'bin');
 
       try {
@@ -2809,7 +2905,10 @@ ipcMain.on('download-dependencies', async (event) => {
 // Legacy OBS-only download handler (kept for compatibility)
 ipcMain.on('download-obs', async (event) => {
   const OBS_DOWNLOAD_URL = 'https://github.com/obsproject/obs-studio/releases/download/31.1.0/OBS-Studio-31.1.0-Windows-x64.zip';
-  const obsDir = path.join(process.cwd(), 'resources', 'obs-studio');
+  // Use LOCALAPPDATA for downloaded resources
+  const localAppData = process.env.LOCALAPPDATA || process.env.APPDATA;
+  const resourcesBase = path.join(localAppData, 'sc-recorder', 'resources');
+  const obsDir = path.join(resourcesBase, 'obs-studio');
   const zipPath = path.join(app.getPath('temp'), 'obs-studio.zip');
 
   try {
@@ -2918,7 +3017,9 @@ ipcMain.handle('update-config', async (event, settings) => {
       await new Promise(resolve => setTimeout(resolve, 3000));
 
       // Step 2: Generate new templates
-      const obsPath = path.join(process.cwd(), 'resources', 'obs-studio');
+      const localAppData = process.env.LOCALAPPDATA || process.env.APPDATA;
+      const resourcesBase = path.join(localAppData, 'sc-recorder', 'resources');
+      const obsPath = path.join(resourcesBase, 'obs-studio');
       const templateGenerator = new OBSTemplateGenerator(path.join(obsPath, 'config', 'obs-studio'));
       await templateGenerator.generateFromConfig(configManager.config);
 
@@ -3001,7 +3102,9 @@ ipcMain.handle('regenerate-templates', async (event, config) => {
     const useCustomProfile = settings?.settings?.customOBS?.useCustomProfile;
     const useCustomScene = settings?.settings?.customOBS?.useCustomScene;
 
-    const obsPath = path.join(process.cwd(), 'resources', 'obs-studio');
+    const localAppData = process.env.LOCALAPPDATA || process.env.APPDATA;
+    const resourcesBase = path.join(localAppData, 'sc-recorder', 'resources');
+    const obsPath = path.join(resourcesBase, 'obs-studio');
     const configPath = path.join(obsPath, 'config', 'obs-studio');
 
     if (useCustomProfile || useCustomScene) {
@@ -3367,7 +3470,7 @@ ipcMain.handle('get-event-patterns', async () => {
 // Load filter templates from file
 ipcMain.handle('load-filter-templates', async () => {
   try {
-    const templatesPath = path.join(process.cwd(), 'config', 'filter-templates.json');
+    const templatesPath = configManager.getFilterTemplatesPath();
 
     // Check if file exists
     try {
@@ -3380,7 +3483,7 @@ ipcMain.handle('load-filter-templates', async () => {
     const content = await fs.readFile(templatesPath, 'utf8');
     const templates = JSON.parse(content);
 
-    console.log('Loaded filter templates');
+    console.log('Loaded filter templates from:', templatesPath);
     return templates;
   } catch (error) {
     console.error('Error loading filter templates:', error);
@@ -3391,10 +3494,15 @@ ipcMain.handle('load-filter-templates', async () => {
 // Save filter templates to file
 ipcMain.handle('save-filter-templates', async (event, templates) => {
   try {
-    const templatesPath = path.join(process.cwd(), 'config', 'filter-templates.json');
+    const templatesPath = configManager.getFilterTemplatesPath();
+
+    // Ensure directory exists
+    const dir = path.dirname(templatesPath);
+    await fs.mkdir(dir, { recursive: true });
+
     await fs.writeFile(templatesPath, JSON.stringify(templates, null, 2));
 
-    console.log('Saved filter templates');
+    console.log('Saved filter templates to:', templatesPath);
     return { success: true };
   } catch (error) {
     console.error('Error saving filter templates:', error);

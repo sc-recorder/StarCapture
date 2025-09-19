@@ -1,6 +1,6 @@
 {
   "name": "SC Recorder Log Patterns",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Star Citizen log parsing patterns for SC Recorder",
   "transforms": {
     "parseTimestamp": {
@@ -11,33 +11,54 @@
       "description": "Cleans up actor/NPC names",
       "type": "cleanName",
       "operations": [
-        { "stripPrefix": ["PU_Human_Enemy_GroundCombat_NPC_", "AIModule_Unmanned_PU_"] },
-        { "removeTrailingNumbers": true },
-        { "replaceUnderscores": true }
+        {
+          "stripPrefix": [
+            "PU_Human_Enemy_GroundCombat_NPC_",
+            "AIModule_Unmanned_PU_"
+          ]
+        },
+        {
+          "removeTrailingNumbers": true
+        },
+        {
+          "replaceUnderscores": true
+        }
       ]
     },
     "cleanWeaponName": {
       "description": "Cleans up weapon names",
       "type": "cleanName",
       "operations": [
-        { "removeTrailingNumbers": true },
-        { "replaceUnderscores": true }
+        {
+          "removeTrailingNumbers": true
+        },
+        {
+          "replaceUnderscores": true
+        }
       ]
     },
     "cleanVehicleName": {
       "description": "Cleans up vehicle names",
       "type": "cleanName",
       "operations": [
-        { "removeTrailingNumbers": true },
-        { "replaceUnderscores": true }
+        {
+          "removeTrailingNumbers": true
+        },
+        {
+          "replaceUnderscores": true
+        }
       ]
     },
     "cleanZoneName": {
       "description": "Cleans up zone/location names",
       "type": "cleanName",
       "operations": [
-        { "removeTrailingNumbers": true },
-        { "replaceUnderscores": true }
+        {
+          "removeTrailingNumbers": true
+        },
+        {
+          "replaceUnderscores": true
+        }
       ]
     }
   },
@@ -82,15 +103,38 @@
       "description": "Detects when a player or NPC is killed",
       "severity": "high",
       "fields": {
-        "timestamp": { "group": 1, "transform": "parseTimestamp" },
-        "victim": { "group": 2, "transform": "cleanActorName" },
-        "victimId": { "group": 3 },
-        "zone": { "group": 4, "transform": "cleanZoneName" },
-        "killer": { "group": 5, "transform": "cleanActorName" },
-        "killerId": { "group": 6 },
-        "weapon": { "group": 7, "transform": "cleanWeaponName" },
-        "weaponClass": { "group": 8 },
-        "damageType": { "group": 9 }
+        "timestamp": {
+          "group": 1,
+          "transform": "parseTimestamp"
+        },
+        "victim": {
+          "group": 2,
+          "transform": "cleanActorName"
+        },
+        "victimId": {
+          "group": 3
+        },
+        "zone": {
+          "group": 4,
+          "transform": "cleanZoneName"
+        },
+        "killer": {
+          "group": 5,
+          "transform": "cleanActorName"
+        },
+        "killerId": {
+          "group": 6
+        },
+        "weapon": {
+          "group": 7,
+          "transform": "cleanWeaponName"
+        },
+        "weaponClass": {
+          "group": 8
+        },
+        "damageType": {
+          "group": 9
+        }
       },
       "message": "{killer} killed {victim} with {weapon}"
     },
@@ -102,14 +146,35 @@
       "description": "Detects when a vehicle is destroyed",
       "severity": "high",
       "fields": {
-        "timestamp": { "group": 1, "transform": "parseTimestamp" },
-        "vehicle": { "group": 2, "transform": "cleanVehicleName" },
-        "vehicleId": { "group": 3 },
-        "zone": { "group": 4, "transform": "cleanZoneName" },
-        "driver": { "group": 5, "transform": "cleanActorName" },
-        "driverId": { "group": 6 },
-        "destroyer": { "group": 7, "transform": "cleanActorName" },
-        "destroyerId": { "group": 8 }
+        "timestamp": {
+          "group": 1,
+          "transform": "parseTimestamp"
+        },
+        "vehicle": {
+          "group": 2,
+          "transform": "cleanVehicleName"
+        },
+        "vehicleId": {
+          "group": 3
+        },
+        "zone": {
+          "group": 4,
+          "transform": "cleanZoneName"
+        },
+        "driver": {
+          "group": 5,
+          "transform": "cleanActorName"
+        },
+        "driverId": {
+          "group": 6
+        },
+        "destroyer": {
+          "group": 7,
+          "transform": "cleanActorName"
+        },
+        "destroyerId": {
+          "group": 8
+        }
       },
       "message": "{vehicle} destroyed by {destroyer}"
     },
@@ -121,14 +186,35 @@
       "description": "Detects when a vehicle is disabled/soft death",
       "severity": "medium",
       "fields": {
-        "timestamp": { "group": 1, "transform": "parseTimestamp" },
-        "vehicle": { "group": 2, "transform": "cleanVehicleName" },
-        "vehicleId": { "group": 3 },
-        "zone": { "group": 4, "transform": "cleanZoneName" },
-        "driver": { "group": 5, "transform": "cleanActorName" },
-        "driverId": { "group": 6 },
-        "attacker": { "group": 7, "transform": "cleanActorName" },
-        "attackerId": { "group": 8 }
+        "timestamp": {
+          "group": 1,
+          "transform": "parseTimestamp"
+        },
+        "vehicle": {
+          "group": 2,
+          "transform": "cleanVehicleName"
+        },
+        "vehicleId": {
+          "group": 3
+        },
+        "zone": {
+          "group": 4,
+          "transform": "cleanZoneName"
+        },
+        "driver": {
+          "group": 5,
+          "transform": "cleanActorName"
+        },
+        "driverId": {
+          "group": 6
+        },
+        "attacker": {
+          "group": 7,
+          "transform": "cleanActorName"
+        },
+        "attackerId": {
+          "group": 8
+        }
       },
       "message": "{vehicle} disabled by {attacker}"
     },
@@ -140,10 +226,20 @@
       "description": "Detects when player enters a vehicle",
       "severity": "low",
       "fields": {
-        "timestamp": { "group": 1, "transform": "parseTimestamp" },
-        "playerId": { "group": 2 },
-        "vehicle": { "group": 3, "transform": "cleanVehicleName" },
-        "vehicleId": { "group": 4 }
+        "timestamp": {
+          "group": 1,
+          "transform": "parseTimestamp"
+        },
+        "playerId": {
+          "group": 2
+        },
+        "vehicle": {
+          "group": 3,
+          "transform": "cleanVehicleName"
+        },
+        "vehicleId": {
+          "group": 4
+        }
       },
       "message": "Entered {vehicle}"
     },
@@ -155,10 +251,20 @@
       "description": "Detects when player exits a vehicle",
       "severity": "low",
       "fields": {
-        "timestamp": { "group": 1, "transform": "parseTimestamp" },
-        "playerId": { "group": 2 },
-        "vehicle": { "group": 3, "transform": "cleanVehicleName" },
-        "vehicleId": { "group": 4 }
+        "timestamp": {
+          "group": 1,
+          "transform": "parseTimestamp"
+        },
+        "playerId": {
+          "group": 2
+        },
+        "vehicle": {
+          "group": 3,
+          "transform": "cleanVehicleName"
+        },
+        "vehicleId": {
+          "group": 4
+        }
       },
       "message": "Exited {vehicle}"
     },
@@ -170,10 +276,19 @@
       "description": "Detects when a mission starts",
       "severity": "medium",
       "fields": {
-        "timestamp": { "group": 1, "transform": "parseTimestamp" },
-        "missionId": { "group": 2 },
-        "generator": { "group": 3 },
-        "contract": { "group": 4 }
+        "timestamp": {
+          "group": 1,
+          "transform": "parseTimestamp"
+        },
+        "missionId": {
+          "group": 2
+        },
+        "generator": {
+          "group": 3
+        },
+        "contract": {
+          "group": 4
+        }
       },
       "message": "Mission started: {contract}"
     },
@@ -185,11 +300,22 @@
       "description": "Detects when a mission completes",
       "severity": "medium",
       "fields": {
-        "timestamp": { "group": 1, "transform": "parseTimestamp" },
-        "missionId": { "group": 2 },
-        "player": { "group": 3 },
-        "playerId": { "group": 4 },
-        "completionType": { "group": 5 }
+        "timestamp": {
+          "group": 1,
+          "transform": "parseTimestamp"
+        },
+        "missionId": {
+          "group": 2
+        },
+        "player": {
+          "group": 3
+        },
+        "playerId": {
+          "group": 4
+        },
+        "completionType": {
+          "group": 5
+        }
       },
       "message": "Mission {completionType}: {missionId}"
     },
@@ -201,9 +327,16 @@
       "description": "Detects when a player connects",
       "severity": "low",
       "fields": {
-        "timestamp": { "group": 1, "transform": "parseTimestamp" },
-        "player": { "group": 2 },
-        "playerId": { "group": 3 }
+        "timestamp": {
+          "group": 1,
+          "transform": "parseTimestamp"
+        },
+        "player": {
+          "group": 2
+        },
+        "playerId": {
+          "group": 3
+        }
       },
       "message": "{player} connected"
     },
@@ -215,7 +348,10 @@
       "description": "Detects when player disconnects",
       "severity": "low",
       "fields": {
-        "timestamp": { "group": 1, "transform": "parseTimestamp" }
+        "timestamp": {
+          "group": 1,
+          "transform": "parseTimestamp"
+        }
       },
       "message": "Player disconnected"
     },
@@ -227,7 +363,10 @@
       "description": "Detects when joining the persistent universe",
       "severity": "low",
       "fields": {
-        "timestamp": { "group": 1, "transform": "parseTimestamp" }
+        "timestamp": {
+          "group": 1,
+          "transform": "parseTimestamp"
+        }
       },
       "message": "Joined Persistent Universe"
     },
@@ -239,8 +378,14 @@
       "description": "Detects when entering a new zone",
       "severity": "low",
       "fields": {
-        "timestamp": { "group": 1, "transform": "parseTimestamp" },
-        "zone": { "group": 2, "transform": "cleanZoneName" }
+        "timestamp": {
+          "group": 1,
+          "transform": "parseTimestamp"
+        },
+        "zone": {
+          "group": 2,
+          "transform": "cleanZoneName"
+        }
       },
       "message": "Entered {zone}"
     },
@@ -252,8 +397,14 @@
       "description": "Detects spawn location",
       "severity": "low",
       "fields": {
-        "timestamp": { "group": 1, "transform": "parseTimestamp" },
-        "location": { "group": 2, "transform": "cleanZoneName" }
+        "timestamp": {
+          "group": 1,
+          "transform": "parseTimestamp"
+        },
+        "location": {
+          "group": 2,
+          "transform": "cleanZoneName"
+        }
       },
       "message": "Spawned at {location}"
     },
@@ -265,8 +416,13 @@
       "description": "Detects quantum jump initiation",
       "severity": "medium",
       "fields": {
-        "timestamp": { "group": 1, "transform": "parseTimestamp" },
-        "destination": { "group": 2 }
+        "timestamp": {
+          "group": 1,
+          "transform": "parseTimestamp"
+        },
+        "destination": {
+          "group": 2
+        }
       },
       "message": "Quantum jump to {destination}"
     },
@@ -278,7 +434,10 @@
       "description": "Detects quantum jump completion",
       "severity": "low",
       "fields": {
-        "timestamp": { "group": 1, "transform": "parseTimestamp" }
+        "timestamp": {
+          "group": 1,
+          "transform": "parseTimestamp"
+        }
       },
       "message": "Quantum jump completed"
     },
@@ -290,9 +449,16 @@
       "description": "Detects when a crime is committed",
       "severity": "medium",
       "fields": {
-        "timestamp": { "group": 1, "transform": "parseTimestamp" },
-        "crimeType": { "group": 2 },
-        "crimeLevel": { "group": 3 }
+        "timestamp": {
+          "group": 1,
+          "transform": "parseTimestamp"
+        },
+        "crimeType": {
+          "group": 2
+        },
+        "crimeLevel": {
+          "group": 3
+        }
       },
       "message": "Crime committed: {crimeType} (Level {crimeLevel})"
     },
@@ -304,39 +470,39 @@
       "description": "Detects bounty placed on player",
       "severity": "high",
       "fields": {
-        "timestamp": { "group": 1, "transform": "parseTimestamp" },
-        "amount": { "group": 2 }
+        "timestamp": {
+          "group": 1,
+          "transform": "parseTimestamp"
+        },
+        "amount": {
+          "group": 2
+        }
       },
       "message": "Bounty placed: {amount} UEC"
     },
     {
-      "id": "insurance_claim_request",
-      "category": "system",
-      "name": "Insurance Claim Request",
-      "pattern": "<(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z)>\\s*\\[Notice\\]\\s*<CWallet::ProcessClaimToNextStep>\\s*New Insurance Claim Request - entitlementURN: ([^,]+), requestId : (\\d+)",
-      "description": "Detects when a player files an insurance claim for a destroyed ship",
-      "severity": "medium",
-      "fields": {
-        "timestamp": { "group": 1, "transform": "parseTimestamp" },
-        "entitlementURN": { "group": 2 },
-        "requestId": { "group": 3 }
-      },
-      "message": "Insurance claim filed (Request #{requestId})"
-    },
-    {
       "id": "insurance_claim_complete",
       "category": "system",
-      "name": "Insurance Claim Complete",
+      "name": "Insurance Claim",
       "pattern": "<(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z)>\\s*\\[Notice\\]\\s*<CWallet::RmMulticastOnProcessClaimCallback>\\s*Claim Complete - entitlementURN: ([^,]+), result: (\\d+),\\s*requestId: (\\d+)",
-      "description": "Detects when an insurance claim is completed",
+      "description": "Detects when an insurance claim is successfully processed by the server",
       "severity": "low",
       "fields": {
-        "timestamp": { "group": 1, "transform": "parseTimestamp" },
-        "entitlementURN": { "group": 2 },
-        "result": { "group": 3 },
-        "requestId": { "group": 4 }
+        "timestamp": {
+          "group": 1,
+          "transform": "parseTimestamp"
+        },
+        "entitlementURN": {
+          "group": 2
+        },
+        "result": {
+          "group": 3
+        },
+        "requestId": {
+          "group": 4
+        }
       },
-      "message": "Insurance claim completed (Request #{requestId})"
+      "message": "Insurance claim processed (Request #{requestId})"
     },
     {
       "id": "fatal_collision",
@@ -346,15 +512,36 @@
       "description": "Detects vehicle crashes with detailed collision information",
       "severity": "high",
       "fields": {
-        "timestamp": { "group": 1, "transform": "parseTimestamp" },
-        "vehicle": { "group": 2, "transform": "cleanVehicleName" },
-        "part": { "group": 3 },
-        "posX": { "group": 4 },
-        "posY": { "group": 5 },
-        "posZ": { "group": 6 },
-        "zone": { "group": 7, "transform": "cleanZoneName" },
-        "playerPilot": { "group": 8 },
-        "entityHit": { "group": 9 }
+        "timestamp": {
+          "group": 1,
+          "transform": "parseTimestamp"
+        },
+        "vehicle": {
+          "group": 2,
+          "transform": "cleanVehicleName"
+        },
+        "part": {
+          "group": 3
+        },
+        "posX": {
+          "group": 4
+        },
+        "posY": {
+          "group": 5
+        },
+        "posZ": {
+          "group": 6
+        },
+        "zone": {
+          "group": 7,
+          "transform": "cleanZoneName"
+        },
+        "playerPilot": {
+          "group": 8
+        },
+        "entityHit": {
+          "group": 9
+        }
       },
       "message": "{vehicle} crashed into {entityHit}"
     },
@@ -366,9 +553,16 @@
       "description": "Detects when a player accepts/starts a mission",
       "severity": "high",
       "fields": {
-        "timestamp": { "group": 1, "transform": "parseTimestamp" },
-        "contractId": { "group": 2 },
-        "missionId": { "group": 3 }
+        "timestamp": {
+          "group": 1,
+          "transform": "parseTimestamp"
+        },
+        "contractId": {
+          "group": 2
+        },
+        "missionId": {
+          "group": 3
+        }
       },
       "message": "Mission accepted"
     },
@@ -380,12 +574,25 @@
       "description": "Detects when a mission ends with completion type",
       "severity": "medium",
       "fields": {
-        "timestamp": { "group": 1, "transform": "parseTimestamp" },
-        "missionId": { "group": 2 },
-        "player": { "group": 3 },
-        "playerId": { "group": 4 },
-        "completionType": { "group": 5 },
-        "reason": { "group": 6 }
+        "timestamp": {
+          "group": 1,
+          "transform": "parseTimestamp"
+        },
+        "missionId": {
+          "group": 2
+        },
+        "player": {
+          "group": 3
+        },
+        "playerId": {
+          "group": 4
+        },
+        "completionType": {
+          "group": 5
+        },
+        "reason": {
+          "group": 6
+        }
       },
       "message": "Mission {completionType}: {reason}"
     },
@@ -397,16 +604,37 @@
       "description": "Detects when a mission waypoint/objective marker is added",
       "severity": "low",
       "fields": {
-        "timestamp": { "group": 1, "transform": "parseTimestamp" },
-        "markerName": { "group": 2 },
-        "markerId": { "group": 3 },
-        "player": { "group": 4 },
-        "playerId": { "group": 5 },
-        "posX": { "group": 6 },
-        "posY": { "group": 7 },
-        "posZ": { "group": 8 },
-        "missionId": { "group": 9 },
-        "objectiveId": { "group": 10 }
+        "timestamp": {
+          "group": 1,
+          "transform": "parseTimestamp"
+        },
+        "markerName": {
+          "group": 2
+        },
+        "markerId": {
+          "group": 3
+        },
+        "player": {
+          "group": 4
+        },
+        "playerId": {
+          "group": 5
+        },
+        "posX": {
+          "group": 6
+        },
+        "posY": {
+          "group": 7
+        },
+        "posZ": {
+          "group": 8
+        },
+        "missionId": {
+          "group": 9
+        },
+        "objectiveId": {
+          "group": 10
+        }
       },
       "message": "Mission waypoint added"
     },
@@ -418,15 +646,168 @@
       "description": "Detects when a mission waypoint/objective marker is removed",
       "severity": "low",
       "fields": {
-        "timestamp": { "group": 1, "transform": "parseTimestamp" },
-        "markerName": { "group": 2 },
-        "markerId": { "group": 3 },
-        "player": { "group": 4 },
-        "playerId": { "group": 5 },
-        "missionId": { "group": 6 },
-        "objectiveId": { "group": 7 }
+        "timestamp": {
+          "group": 1,
+          "transform": "parseTimestamp"
+        },
+        "markerName": {
+          "group": 2
+        },
+        "markerId": {
+          "group": 3
+        },
+        "player": {
+          "group": 4
+        },
+        "playerId": {
+          "group": 5
+        },
+        "missionId": {
+          "group": 6
+        },
+        "objectiveId": {
+          "group": 7
+        }
       },
       "message": "Mission waypoint removed"
+    },
+    {
+      "id": "jump_point_state_change",
+      "category": "location",
+      "name": "Jump Point State Change",
+      "pattern": "<(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z)>\\s*\\[Notice\\]\\s*<Jump Point Changing State>\\s*State is now (\\w+).*?\\|[^|]*\\|[^|]*\\| (\\w+) \\|.*?JumpPoint_Permanent \\[(\\d+)\\].*?in zone ([^\\)]+)\\)",
+      "description": "Detects when a jump point changes state (Opening, Inactive, etc.)",
+      "severity": "medium",
+      "fields": {
+        "timestamp": {
+          "group": 1,
+          "transform": "parseTimestamp"
+        },
+        "state": {
+          "group": 2
+        },
+        "currentSystem": {
+          "group": 3
+        },
+        "jumpPointId": {
+          "group": 4
+        },
+        "zone": {
+          "group": 5
+        }
+      },
+      "message": "Jump point {state} in {zone}"
+    },
+    {
+      "id": "jump_drive_state_change",
+      "category": "vehicle",
+      "name": "Jump Drive State Change",
+      "pattern": "<(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z)>\\s*\\[Notice\\]\\s*<Jump Drive State Changed>\\s*Now (\\w+).*?\\|[^|]*\\| \\w+ \\| (\\w+) \\|.*?\\[(\\d+)\\].*?in zone ([^\\)]+)\\)",
+      "description": "Detects jump drive state changes (Idle, EntryChecks, Tuning, RequestingJump, WaitingForOpen)",
+      "severity": "low",
+      "fields": {
+        "timestamp": {
+          "group": 1,
+          "transform": "parseTimestamp"
+        },
+        "driveState": {
+          "group": 2
+        },
+        "currentSystem": {
+          "group": 3
+        },
+        "driveId": {
+          "group": 4
+        },
+        "zone": {
+          "group": 5
+        }
+      },
+      "message": "Jump drive: {driveState}"
+    },
+    {
+      "id": "system_arrival_pyro",
+      "category": "location",
+      "name": "Arriving in Pyro",
+      "pattern": "Loading screen for Pyro : \\w+ closed after ([\\d\\.]+) seconds",
+      "description": "Detects arrival in Pyro system",
+      "severity": "high",
+      "fields": {
+        "loadTime": {
+          "group": 1
+        }
+      },
+      "message": "Arrived in Pyro (loaded in {loadTime}s)"
+    },
+    {
+      "id": "system_arrival_stanton",
+      "category": "location",
+      "name": "Arriving in Stanton",
+      "pattern": "Loading screen for Stanton : \\w+ closed after ([\\d\\.]+) seconds",
+      "description": "Detects arrival in Stanton system",
+      "severity": "high",
+      "fields": {
+        "loadTime": {
+          "group": 1
+        }
+      },
+      "message": "Arrived in Stanton (loaded in {loadTime}s)"
+    },
+    {
+      "id": "atc_communication_establish",
+      "category": "player",
+      "name": "ATC Communication",
+      "pattern": "<(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z)>\\s*\\[Notice\\]\\s*<Connection Flow>\\s*CSCCommsComponent::DoEstablishCommunicationCommon:.*?for ([^\\[]+) \\[(\\d+)\\].*?AImodule_ATC_([^\\s]+) \\[(\\d+)\\]",
+      "description": "Detects ATC communication with stations (requires player filtering)",
+      "severity": "low",
+      "requiresPlayerFilter": true,
+      "fields": {
+        "timestamp": {
+          "group": 1,
+          "transform": "parseTimestamp"
+        },
+        "playerName": {
+          "group": 2
+        },
+        "playerId": {
+          "group": 3
+        },
+        "atcStation": {
+          "group": 4
+        },
+        "atcModuleId": {
+          "group": 5
+        }
+      },
+      "message": "ATC contact: {atcStation}"
+    },
+    {
+      "id": "hangar_assignment",
+      "category": "location",
+      "name": "Hangar Assignment",
+      "pattern": "<(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z)>.*?Hangar_(\\w+)_(\\w+)_\\d+.*?for ([^\\[]+) \\[(\\d+)\\]",
+      "description": "Detects hangar assignments for landing",
+      "severity": "medium",
+      "requiresPlayerFilter": true,
+      "fields": {
+        "timestamp": {
+          "group": 1,
+          "transform": "parseTimestamp"
+        },
+        "hangarSize": {
+          "group": 2
+        },
+        "location": {
+          "group": 3
+        },
+        "playerName": {
+          "group": 4
+        },
+        "playerId": {
+          "group": 5
+        }
+      },
+      "message": "Assigned {hangarSize} hangar at {location}"
     }
   ]
 }

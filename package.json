@@ -1,6 +1,6 @@
 {
   "name": "sc-recorder",
-  "version": "1.0.0-beta2",
+  "version": "1.0.0-beta3",
   "description": "Star Citizen Gameplay Recorder",
   "main": "main.js",
   "scripts": {
@@ -31,6 +31,7 @@
     "files": [
       "**/*",
       "oauth-config.json",
+      "!config/**",
       "!resources/obs-studio/**",
       "!resources/ffmpeg/**",
       "!templates/**",
@@ -40,6 +41,8 @@
       "!*.md",
       "!.git/**",
       "!.gitignore",
+      "!.claude/**",
+      "!CLAUDE.md",
       "!build-portable.js",
       "!create-source-distribution.js",
       "!dist/**",
@@ -89,7 +92,7 @@
     "electron-icon-builder": "^2.0.1"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.888.0",
+    "@aws-sdk/client-s3": "^3.892.0",
     "@aws-sdk/lib-storage": "^3.888.0",
     "@electron/remote": "^2.1.0",
     "@google-cloud/local-auth": "^3.0.1",

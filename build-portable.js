@@ -1,6 +1,6 @@
 const fs = require('fs');
 const path = require('path');
-const { execSync } = require('child_process');
+const { execSync, spawn } = require('child_process');
 const archiver = require('archiver');
 
 // Load version from package.json
@@ -39,7 +39,7 @@ function createDirectoryStructure() {
     fs.mkdirSync(path.join(PORTABLE_DIR, 'resources'), { recursive: true });
     fs.mkdirSync(path.join(PORTABLE_DIR, 'resources', 'obs-studio'), { recursive: true });
     fs.mkdirSync(path.join(PORTABLE_DIR, 'resources', 'ffmpeg'), { recursive: true });
-    fs.mkdirSync(path.join(PORTABLE_DIR, 'config'), { recursive: true });
+    // No config folder - patterns auto-download from S3
     
     console.log('Created directory structure');
 }
@@ -73,7 +73,7 @@ async function copyAllFiles() {
                 console.log(`Copying resources directory...`);
                 // Copy the resources directory but we'll handle obs-studio and ffmpeg separately
                 copyAppResources(sourcePath, destPath);
-            } else if (file !== 'config') {
+            } else {
                 // Copy other directories normally
                 console.log(`Copying directory: ${file}`);
                 copyDirectoryRecursive(sourcePath, destPath);
@@ -206,29 +206,9 @@ function copyAppResources(source, dest) {
     });
 }
 
-// Copy config files from electron-builder extraResources
+// No longer need to copy config files - patterns auto-download from S3
 function copyConfigFiles() {
-    // Config files should be in the resources folder from electron-builder
-    const configSource = path.join(WIN_UNPACKED_DIR, 'resources', 'config');
-    const configDest = path.join(PORTABLE_DIR, 'resources', 'config');
-    
-    if (fs.existsSync(configSource)) {
-        if (!fs.existsSync(configDest)) {
-            fs.mkdirSync(configDest, { recursive: true });
-        }
-        
-        const files = fs.readdirSync(configSource);
-        files.forEach(file => {
-            if (file.endsWith('.json')) {
-                const sourcePath = path.join(configSource, file);
-                const destPath = path.join(configDest, file);
-                fs.copyFileSync(sourcePath, destPath);
-                console.log(`Copied config/${file}`);
-            }
-        });
-    } else {
-        console.warn('Warning: config/ directory not found in electron-builder output');
-    }
+    console.log('Skipping config files - patterns will auto-download from S3 on first run');
 }
 
 // Create README for users
@@ -315,10 +295,239 @@ async function createZipArchive() {
     });
 }
 
+// Create Inno Setup script
+function createInnoSetupScript() {
+    const scriptFileName = `StarCapture-v${VERSION}.iss`;
+    const scriptPath = path.join(DIST_DIR, scriptFileName);
+
+    // Format version for Windows (needs to be X.X.X.X format)
+    const formatVersionForWindows = (version) => {
+        // Remove pre-release tags like -beta3
+        let cleanVersion = version.replace(/-.*$/, '');
+        // Split into parts
+        let parts = cleanVersion.split('.');
+        // Ensure we have at least 3 parts
+        while (parts.length < 3) {
+            parts.push('0');
+        }
+        // Take only first 3 parts and join
+        return parts.slice(0, 3).join('.');
+    };
+
+    const windowsVersion = formatVersionForWindows(VERSION);
+
+    const innoScript = `; StarCapture Inno Setup Script
+; Version: ${VERSION}
+; Generated: ${new Date().toISOString()}
+
+#define MyAppName "StarCapture"
+#define MyAppVersion "${VERSION}"
+#define MyAppPublisher "SC Recorder"
+#define MyAppURL "https://starcapture.video"
+#define MyAppExeName "StarCapture.exe"
+#define MyAppIcon "..\\build\\icon.ico"
+
+[Setup]
+AppId={{E5D8C4B1-7F2A-4B3C-9D6E-1A8F9C3D2B5E}
+AppName={#MyAppName}
+AppVersion={#MyAppVersion}
+AppPublisher={#MyAppPublisher}
+AppPublisherURL={#MyAppURL}
+AppSupportURL={#MyAppURL}
+AppUpdatesURL={#MyAppURL}
+DefaultDirName={autopf}\\{#MyAppName}
+DefaultGroupName={#MyAppName}
+AllowNoIcons=yes
+; LicenseFile is optional - comment out if no LICENSE file exists
+; LicenseFile=..\\LICENSE
+OutputDir=.
+OutputBaseFilename=StarCapture-Setup-v${VERSION}
+SetupIconFile={#MyAppIcon}
+Compression=lzma2/ultra64
+SolidCompression=yes
+WizardStyle=modern
+DisableProgramGroupPage=yes
+PrivilegesRequired=admin
+ArchitecturesAllowed=x64
+ArchitecturesInstallIn64BitMode=x64
+UninstallDisplayIcon={app}\\{#MyAppExeName}
+UninstallDisplayName={#MyAppName} v{#MyAppVersion}
+VersionInfoVersion=${windowsVersion}
+VersionInfoCompany={#MyAppPublisher}
+VersionInfoDescription=Star Citizen Gameplay Recorder
+VersionInfoProductName={#MyAppName}
+
+[Languages]
+Name: "english"; MessagesFile: "compiler:Default.isl"
+
+[Tasks]
+Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
+Name: "quicklaunchicon"; Description: "{cm:CreateQuickLaunchIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked; OnlyBelowVersion: 6.1
+
+[Files]
+; Main application files
+Source: "StarCapture-v${VERSION}\\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+; Note: Don't use "Flags: ignoreversion" on any shared system files
+
+[Icons]
+Name: "{group}\\{#MyAppName}"; Filename: "{app}\\{#MyAppExeName}"; IconFilename: "{app}\\{#MyAppExeName}"
+Name: "{group}\\{cm:UninstallProgram,{#MyAppName}}"; Filename: "{uninstallexe}"
+Name: "{autodesktop}\\{#MyAppName}"; Filename: "{app}\\{#MyAppExeName}"; Tasks: desktopicon; IconFilename: "{app}\\{#MyAppExeName}"
+Name: "{userappdata}\\Microsoft\\Internet Explorer\\Quick Launch\\{#MyAppName}"; Filename: "{app}\\{#MyAppExeName}"; Tasks: quicklaunchicon; IconFilename: "{app}\\{#MyAppExeName}"
+
+[Run]
+Filename: "{app}\\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
+
+[UninstallDelete]
+; Clean up folders created at runtime
+Type: filesandordirs; Name: "{app}\\resources\\obs-studio"
+Type: filesandordirs; Name: "{app}\\resources\\ffmpeg"
+Type: filesandordirs; Name: "{app}\\logs"
+Type: filesandordirs; Name: "{app}\\recordings"
+Type: filesandordirs; Name: "{app}\\saved"
+
+[Code]
+function InitializeSetup(): Boolean;
+begin
+  Result := True;
+  // Star Citizen check disabled - users can install StarCapture before Star Citizen
+end;
+
+procedure InitializeWizard();
+begin
+  // Set custom wizard window size if needed
+  WizardForm.Width := 500;
+  WizardForm.Height := 400;
+end;
+
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+begin
+  Result := '';
+  NeedsRestart := False;
+  // Running instance check disabled - Windows will handle file replacement
+end;
+
+procedure CurStepChanged(CurStep: TSetupStep);
+var
+  ResultCode: Integer;
+begin
+  if CurStep = ssPostInstall then
+  begin
+    // Create config directory if it doesn't exist
+    ForceDirectories(ExpandConstant('{app}\\config'));
+
+    // Set Windows Defender exclusion (optional, requires admin)
+    // This helps prevent false positives and performance issues
+    try
+      Exec('powershell.exe',
+           '-Command "Add-MpPreference -ExclusionPath ''' + ExpandConstant('{app}') + '''"',
+           '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    except
+      // Silently continue if this fails
+    end;
+  end;
+end;
+
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+var
+  ResultCode: Integer;
+begin
+  if CurUninstallStep = usUninstall then
+  begin
+    // Remove Windows Defender exclusion
+    try
+      Exec('powershell.exe',
+           '-Command "Remove-MpPreference -ExclusionPath ''' + ExpandConstant('{app}') + '''"',
+           '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    except
+      // Silently continue if this fails
+    end;
+  end;
+
+  if CurUninstallStep = usPostUninstall then
+  begin
+    // Clean up AppData folder
+    DelTree(ExpandConstant('{userappdata}\\sc-recorder'), True, True, True);
+  end;
+end;
+`;
+
+    fs.writeFileSync(scriptPath, innoScript);
+    console.log(`Created Inno Setup script: ${scriptFileName}`);
+
+    return scriptFileName;
+}
+
+// Compile Inno Setup script to create installer
+async function compileInnoSetup(scriptFileName) {
+    const scriptPath = path.join(DIST_DIR, scriptFileName);
+    const innoSetupPath = 'C:\\Program Files (x86)\\Inno Setup 6\\ISCC.exe';
+
+    // Check if Inno Setup is installed
+    if (!fs.existsSync(innoSetupPath)) {
+        console.log('⚠️  Inno Setup not found at:', innoSetupPath);
+        console.log('   Skipping installer compilation. Install Inno Setup to enable automatic building.');
+        return null;
+    }
+
+    console.log('\n📦 Compiling installer with Inno Setup...');
+
+    return new Promise((resolve, reject) => {
+        const process = spawn(innoSetupPath, [scriptPath, '/Q'], {
+            cwd: DIST_DIR,
+            stdio: 'pipe'
+        });
+
+        let output = '';
+
+        process.stdout.on('data', (data) => {
+            output += data.toString();
+            // Show progress dots
+            process.stdout.write('.');
+        });
+
+        process.stderr.on('data', (data) => {
+            console.error('Inno Setup error:', data.toString());
+        });
+
+        process.on('close', (code) => {
+            console.log(''); // New line after dots
+
+            if (code === 0) {
+                const installerName = `StarCapture-Setup-v${VERSION}.exe`;
+                const installerPath = path.join(DIST_DIR, installerName);
+
+                if (fs.existsSync(installerPath)) {
+                    const stats = fs.statSync(installerPath);
+                    const sizeMB = (stats.size / 1024 / 1024).toFixed(2);
+                    console.log(`✅ Installer compiled successfully: ${installerName} (${sizeMB} MB)`);
+                    resolve(installerName);
+                } else {
+                    console.error('❌ Installer file not found after compilation');
+                    resolve(null);
+                }
+            } else {
+                console.error(`❌ Inno Setup compilation failed with code ${code}`);
+                if (output) {
+                    console.error('Output:', output);
+                }
+                resolve(null);
+            }
+        });
+
+        process.on('error', (err) => {
+            console.error('Failed to start Inno Setup:', err.message);
+            resolve(null);
+        });
+    });
+}
+
 // Create build info JSON file
-function createBuildInfo(zipFileName) {
+function createBuildInfo(zipFileName, issFileName, installerFileName) {
     const buildInfo = {
         build: zipFileName,
+        installer: installerFileName || 'Not compiled (Inno Setup not found)',
+        innoScript: issFileName,
         version: VERSION,
         timestamp: new Date().toISOString(),
         platform: 'win32',
@@ -346,11 +555,25 @@ function createBuildInfo(zipFileName) {
         // Create ZIP archive
         const { fileName } = await createZipArchive();
 
+        // Create Inno Setup script
+        const issFileName = createInnoSetupScript();
+
+        // Compile installer if Inno Setup is available
+        const installerFileName = await compileInnoSetup(issFileName);
+
         // Create build info JSON
-        const buildInfo = createBuildInfo(fileName);
+        const buildInfo = createBuildInfo(fileName, issFileName, installerFileName);
 
         console.log('\n✅ Build process complete!');
         console.log(`📦 ZIP Archive: ${path.join(DIST_DIR, fileName)}`);
+        console.log(`📄 Inno Script: ${path.join(DIST_DIR, issFileName)}`);
+
+        if (installerFileName) {
+            console.log(`🚀 Installer: ${path.join(DIST_DIR, installerFileName)}`);
+        } else {
+            console.log('ℹ️  To create installer manually: Open the .iss file in Inno Setup Compiler');
+        }
+
         console.log(`📄 Build Info: ${path.join(DIST_DIR, 'current.json')}`);
         console.log('\nBuild info:');
         console.log(JSON.stringify(buildInfo, null, 2));

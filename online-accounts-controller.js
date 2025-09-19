@@ -538,20 +538,23 @@ class OnlineAccountsController {
         const privacy = document.getElementById('youtube-privacy')?.value || 'private';
         const playlist = document.getElementById('youtube-playlist')?.value?.trim();
 
-        // Provide defaults if userInfo is missing
-        const userInfo = this.googleAuthData.userInfo || {};
+        // Calculate token expiry timestamp
+        const expiresIn = this.googleAuthData.tokens.expires_in || 3600;
+        const expiresAt = Date.now() + (expiresIn * 1000);
 
         return {
             credentials: {
                 accessToken: this.googleAuthData.tokens.access_token,
                 refreshToken: this.googleAuthData.tokens.refresh_token,
-                expiresIn: this.googleAuthData.tokens.expires_in,
-                tokenType: this.googleAuthData.tokens.token_type
+                expiresIn: expiresIn,
+                expiresAt: expiresAt,
+                tokenType: this.googleAuthData.tokens.token_type || 'Bearer',
+                scope: this.googleAuthData.tokens.scope
             },
             config: {
-                channelId: userInfo.id || 'unknown',
-                channelName: userInfo.name || 'YouTube User',
-                email: userInfo.email || '',
+                channelId: 'youtube-account',  // Generic ID since we can't fetch actual channel
+                channelName: 'YouTube Account',  // Generic name
+                email: '',  // No email with youtube.upload scope
                 privacy,
                 playlist: playlist || undefined
             }
