@@ -397,6 +397,13 @@ class NewSettingsManager {
             }
         }
 
+        // Load auto-update setting
+        if (this.config.settings.autoUpdateEnabled !== undefined) {
+            document.getElementById('auto-update-enabled').checked = this.config.settings.autoUpdateEnabled;
+        } else {
+            document.getElementById('auto-update-enabled').checked = true; // Default enabled
+        }
+
         // Recording options
         if (this.config.settings.recordingOptions) {
             const opts = this.config.settings.recordingOptions;
@@ -681,6 +688,7 @@ class NewSettingsManager {
             starCitizen: {
                 path: document.getElementById('sc-path-general').value
             },
+            autoUpdateEnabled: document.getElementById('auto-update-enabled').checked,
             hotkeys: {
                 startStop: document.getElementById('hotkey-start-stop').value || '',
                 split: document.getElementById('hotkey-split').value || '',

@@ -8,6 +8,7 @@ const ConfigManager = require('./lib/config-manager');
 const OBSTemplateGenerator = require('./lib/obs-template-generator');
 const OBSCapabilityDetector = require('./lib/obs-capability-detector');
 const PatternUpdater = require('./lib/pattern-updater');
+const AutoUpdater = require('./lib/auto-updater');
 
 // Add handlers for uncaught errors to prevent crashes
 process.on('uncaughtException', (error) => {
@@ -124,7 +125,7 @@ function createSplashWindow() {
       width: 600,
       height: 600,
       frame: false,
-      alwaysOnTop: true,
+      alwaysOnTop: false,
       transparent: false,
       resizable: false,
       show: false,
@@ -292,8 +293,10 @@ async function initializeApp() {
   console.log('Initializing SC Recorder...');
 
   try {
-    // Initialize configuration manager
-    configManager = new ConfigManager();
+    // Initialize configuration manager if not already done
+    if (!configManager) {
+      configManager = new ConfigManager();
+    }
 
     // Check if configuration exists
     const configExists = await configManager.exists();
@@ -571,6 +574,59 @@ app.whenReady().then(async () => {
   registerProtocolHandler();
 
   await createSplashWindow();
+
+  // Initialize config manager early to check auto-update setting
+  configManager = new ConfigManager();
+  const config = configManager.load();
+
+  // Check if auto-updates are enabled (default to true if not set)
+  const autoUpdateEnabled = config?.settings?.autoUpdateEnabled !== false;
+
+  // Check for application updates first (if enabled)
+  if (autoUpdateEnabled) {
+    const autoUpdater = new AutoUpdater();
+
+    // Set progress callback to update splash screen
+    autoUpdater.setProgressCallback((progress, downloaded, total) => {
+      if (splashWindow && !splashWindow.isDestroyed()) {
+        const mb = (size) => (size / 1024 / 1024).toFixed(1);
+        splashWindow.webContents.send('splash-progress', {
+          message: `Downloading update... ${mb(downloaded)}MB / ${mb(total)}MB (${progress}%)`,
+          progress: 20 + (progress * 0.7) // Scale progress from 20% to 90%
+        });
+      }
+    });
+
+    // Check for updates and prompt user if available
+    const updateInfo = await autoUpdater.checkForUpdates();
+
+    if (updateInfo.hasUpdate) {
+      if (splashWindow && !splashWindow.isDestroyed()) {
+        splashWindow.webContents.send('splash-progress', {
+          message: `Update available: v${updateInfo.latestVersion}`,
+          progress: 15
+        });
+      }
+
+      const shouldUpdate = await autoUpdater.promptUserForUpdate(updateInfo);
+
+      if (shouldUpdate) {
+        if (splashWindow && !splashWindow.isDestroyed()) {
+          splashWindow.webContents.send('splash-progress', {
+            message: 'Preparing to install update...',
+            progress: 20
+          });
+        }
+
+        const success = await autoUpdater.performUpdate();
+
+        if (success) {
+          // App will quit and installer will run
+          return;
+        }
+      }
+    }
+  }
 
   // Check for pattern updates before initialization
   await checkPatternUpdates();

@@ -1,6 +1,6 @@
 # StarCapture Source Distribution
 
-Version 1.0.0-beta3
+Version 1.0.0-RC1
 
 ## Requirements
 
@@ -34,7 +34,7 @@ npm run dist:win
 npm run portable
 ```
 
-The executable will be in dist/StarCapture-v1.0.0-beta3/
+The executable will be in dist/StarCapture-v1.0.0-RC1/
 
 ## License
 

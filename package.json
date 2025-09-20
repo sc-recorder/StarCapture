@@ -1,6 +1,6 @@
 {
   "name": "sc-recorder",
-  "version": "1.0.0-beta3",
+  "version": "1.0.0-RC1",
   "description": "Star Citizen Gameplay Recorder",
   "main": "main.js",
   "scripts": {

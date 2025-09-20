@@ -387,6 +387,10 @@ Type: filesandordirs; Name: "{app}\\recordings"
 Type: filesandordirs; Name: "{app}\\saved"
 
 [Code]
+var
+  DeleteExternalDeps: Boolean;
+  DeleteUserSettings: Boolean;
+
 function InitializeSetup(): Boolean;
 begin
   Result := True;
@@ -428,9 +432,22 @@ begin
   end;
 end;
 
+function InitializeUninstall(): Boolean;
+begin
+  Result := True;
+
+  // Ask user about removing external dependencies
+  DeleteExternalDeps := MsgBox('Do you want to remove OBS and FFmpeg from LocalAppData?' + #13#10 + #13#10 + 'This will delete the downloaded external dependencies.', mbConfirmation, MB_YESNO) = IDYES;
+
+  // Ask user about removing settings
+  DeleteUserSettings := MsgBox('Do you want to remove all settings and saved filters?' + #13#10 + #13#10 + 'This will delete all your StarCapture configuration and preferences.', mbConfirmation, MB_YESNO) = IDYES;
+end;
+
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 var
   ResultCode: Integer;
+  LocalAppDataPath: String;
+  AppDataPath: String;
 begin
   if CurUninstallStep = usUninstall then
   begin
@@ -446,8 +463,28 @@ begin
 
   if CurUninstallStep = usPostUninstall then
   begin
-    // Clean up AppData folder
-    DelTree(ExpandConstant('{userappdata}\\sc-recorder'), True, True, True);
+    // Always clean up the basic AppData folder
+    AppDataPath := ExpandConstant('{userappdata}\\sc-recorder');
+
+    // Clean up LocalAppData external dependencies if user chose to
+    if DeleteExternalDeps then
+    begin
+      LocalAppDataPath := ExpandConstant('{localappdata}\\sc-recorder');
+      // Delete the entire sc-recorder folder from LocalAppData
+      if DirExists(LocalAppDataPath) then
+      begin
+        DelTree(LocalAppDataPath, True, True, True);
+      end;
+    end;
+
+    // Clean up all user settings and saved filters if user chose to
+    if DeleteUserSettings then
+    begin
+      if DirExists(AppDataPath) then
+      begin
+        DelTree(AppDataPath, True, True, True);
+      end;
+    end;
   end;
 end;
 `;
