@@ -41,8 +41,6 @@
       "!*.md",
       "!.git/**",
       "!.gitignore",
-      "!.claude/**",
-      "!CLAUDE.md",
       "!build-portable.js",
       "!create-source-distribution.js",
       "!dist/**",
