@@ -31,7 +31,6 @@ class OnlineAccountsController {
         // Listen for upload state changes
         if (this.ipc) {
             this.ipc.on('upload-state-changed', (event, state) => {
-                console.log('[OnlineAccounts] Upload state changed:', state);
                 if (state.accounts) {
                     this.accounts = state.accounts;
                     this.renderAccounts();
@@ -40,7 +39,6 @@ class OnlineAccountsController {
 
             // Listen for OAuth callbacks from the proxy server
             this.ipc.on('oauth-callback', (event, data) => {
-                console.log('[OnlineAccounts] OAuth callback received:', data);
                 if (data.success) {
                     const service = data.service === 'google' ? 'youtube' : data.service;
                     const statusDiv = document.getElementById(`${service}-auth-status`);
@@ -75,15 +73,12 @@ class OnlineAccountsController {
     }
 
     setupElements() {
-        console.log('[OnlineAccounts] Setting up elements...');
 
         // Account list container
         this.accountsList = document.getElementById('accounts-list');
-        console.log('[OnlineAccounts] accounts-list element:', this.accountsList);
 
         // Buttons
         this.addAccountBtn = document.getElementById('add-account-btn');
-        console.log('[OnlineAccounts] add-account-btn element:', this.addAccountBtn);
         this.testAccountBtn = document.getElementById('test-account-btn');
         this.deleteAccountBtn = document.getElementById('delete-account-btn');
 
@@ -104,7 +99,6 @@ class OnlineAccountsController {
         this.confirmDeleteBtn = document.getElementById('confirm-delete-confirm');
         this.cancelDeleteBtn = document.getElementById('confirm-delete-cancel');
 
-        console.log('[OnlineAccounts] Elements setup complete');
     }
 
     setupEventListeners() {

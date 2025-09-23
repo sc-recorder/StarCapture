@@ -412,7 +412,7 @@
                                 <div id="confirm-message"></div>
                             </div>
                             <div class="modal-footer">
-                                <button class="btn btn-secondary"
+                                <button id="confirm-cancel-btn" class="btn btn-secondary"
                                     onclick="window.postController.cancelConfirm()">Cancel</button>
                                 <button id="confirm-ok-btn" class="btn btn-primary">OK</button>
                             </div>
@@ -988,7 +988,14 @@
                                         <span>Est. Size: <span id="est-file-size">--</span></span>
                                         <span>Output Duration: <span id="output-duration">--:--:--</span></span>
                                     </div>
-                                    
+
+                                    <div class="export-options" style="margin: 10px 0;">
+                                        <label class="checkbox-label" style="display: inline-flex; align-items: center;">
+                                            <input type="checkbox" id="generate-thumbnails-check" style="margin-right: 8px;">
+                                            <span>Generate Thumbnails on Export</span>
+                                        </label>
+                                    </div>
+
                                     <button id="export-video-btn" class="btn btn-primary btn-lg" disabled>
                                         <span class="btn-icon">💾</span> Export Video
                                     </button>
@@ -1050,6 +1057,10 @@
                                         <span class="step-icon">💾</span>
                                         <span class="step-text">Saving file...</span>
                                     </div>
+                                    <div class="progress-step" id="step-thumbnails" style="display: none;">
+                                        <span class="step-icon">🖼️</span>
+                                        <span class="step-text">Generating thumbnails...</span>
+                                    </div>
                                 </div>
                                 <div class="export-progress-bar" style="margin-top: 20px;">
                                     <div class="progress-bar">
@@ -1075,6 +1086,27 @@
                                 <button id="open-output-folder-btn" class="btn btn-primary" style="display: none;">Open Output Folder</button>
                                 <button id="close-export-modal-btn" class="btn btn-secondary" style="display: none;">Close</button>
                             </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Thumbnail Generation Progress Modal -->
+                <div id="thumbnail-progress-modal" class="modal" style="display: none;">
+                    <div class="modal-content modal-content-medium">
+                        <div class="modal-header">
+                            <h3>Generating Thumbnails</h3>
+                        </div>
+                        <div class="modal-body">
+                            <div class="progress-info" style="text-align: center; margin-bottom: 20px;">
+                                <span style="font-size: 18px;">
+                                    <span id="thumbnail-current">0</span> of
+                                    <span id="thumbnail-total">0</span> events
+                                </span>
+                            </div>
+                            <div class="progress-bar">
+                                <div id="thumbnail-progress-fill" class="progress-fill progress-fill-style" style="width: 0%"></div>
+                            </div>
+                            <div id="thumbnail-current-event" class="current-item" style="text-align: center; margin-top: 15px; color: #888;"></div>
                         </div>
                     </div>
                 </div>

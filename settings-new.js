@@ -26,7 +26,6 @@ class NewSettingsManager {
     async loadConfig() {
         try {
             this.config = await ipcRenderer.invoke('load-config');
-            console.log('[NewSettings] Configuration loaded:', this.config);
             return this.config;
         } catch (error) {
             console.error('[NewSettings] Failed to load configuration:', error);
@@ -201,7 +200,6 @@ class NewSettingsManager {
                         width: parseInt(selectedOption.dataset.width),
                         height: parseInt(selectedOption.dataset.height)
                     };
-                    console.log('[NewSettings] Native resolution updated to:', this.nativeResolution);
                 }
             }
         });
@@ -213,7 +211,6 @@ class NewSettingsManager {
                     width: parseInt(e.target.value) || 1920,
                     height: parseInt(document.getElementById('custom-height-input-capture').value) || 1080
                 };
-                console.log('[NewSettings] Custom resolution updated to:', this.nativeResolution);
             }
         });
 
@@ -223,7 +220,6 @@ class NewSettingsManager {
                     width: parseInt(document.getElementById('custom-width-input-capture').value) || 1920,
                     height: parseInt(e.target.value) || 1080
                 };
-                console.log('[NewSettings] Custom resolution updated to:', this.nativeResolution);
             }
         });
 
@@ -579,7 +575,6 @@ class NewSettingsManager {
 
             if (!select) return;
 
-            console.log('[NewSettings] Displays received:', displays);
             select.innerHTML = '';
 
             displays.forEach((display, index) => {
@@ -625,7 +620,6 @@ class NewSettingsManager {
                             width: parseInt(selectedOption.dataset.width),
                             height: parseInt(selectedOption.dataset.height)
                         };
-                        console.log('[NewSettings] Native resolution updated from restored display:', this.nativeResolution);
                     }
                 }
             } else if (displays.length > 0) {
@@ -637,7 +631,6 @@ class NewSettingsManager {
                     width: width,
                     height: height
                 };
-                console.log('[NewSettings] Native resolution set to first display (no saved config):', this.nativeResolution);
             }
         } catch (error) {
             console.error('[NewSettings] Failed to populate displays:', error);
@@ -1038,7 +1031,6 @@ class NewSettingsManager {
             }
 
             const result = await ipcRenderer.invoke('detect-audio-devices');
-            console.log('[NewSettings] Audio devices detected:', result);
 
             if (result.success) {
                 // Update audio source dropdowns with the correct device arrays
@@ -1084,7 +1076,6 @@ class NewSettingsManager {
     }
 
     updateAudioSources(inputDevices, outputDevices, applications) {
-        console.log('[NewSettings] Updating audio sources:', { inputDevices, outputDevices, applications });
 
         // Update track 2 source dropdown
         const track2Source = document.getElementById('track2-source-capture');
@@ -1168,7 +1159,6 @@ document.addEventListener('DOMContentLoaded', () => {
                           document.getElementById('advanced-settings-view');
 
     if (hasNewSettings) {
-        console.log('[NewSettings] Initializing new settings manager');
         window.newSettingsManager = new NewSettingsManager();
     }
 });

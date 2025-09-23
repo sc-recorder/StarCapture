@@ -4,16 +4,13 @@
  */
 class SharedVideoBrowser {
     constructor(options = {}) {
-        console.log(`[SharedVideoBrowser] Creating instance with modalId: ${options.modalId}`);
         this.modalId = options.modalId || 'video-browser-modal';
         this.onVideoSelected = options.onVideoSelected || null;
         this.onEventsSelected = options.onEventsSelected || null;
         this.currentFolder = 'recordings'; // Default to recordings folder
 
         // Create modal if it doesn't exist
-        console.log(`[SharedVideoBrowser] Creating modal for ${this.modalId}...`);
         this.createModal();
-        console.log(`[SharedVideoBrowser] Instance created successfully for ${this.modalId}`);
     }
     
     /**
@@ -22,7 +19,6 @@ class SharedVideoBrowser {
     createModal() {
         // Check if modal already exists
         if (document.getElementById(this.modalId)) {
-            console.log('Modal already exists:', this.modalId);
             return;
         }
 
@@ -32,7 +28,6 @@ class SharedVideoBrowser {
             return;
         }
 
-        console.log(`[SharedVideoBrowser] Actually creating modal element for ${this.modalId}`);
         // Create modal HTML
         const modal = document.createElement('div');
         modal.id = this.modalId;
@@ -91,7 +86,6 @@ class SharedVideoBrowser {
             const closeBtn = document.getElementById(`${this.modalId}-close`);
             if (closeBtn) {
                 closeBtn.addEventListener('click', () => this.hide());
-                console.log(`[SharedVideoBrowser] Close button listener added for ${this.modalId}`);
             } else {
                 console.warn(`[SharedVideoBrowser] Close button not found for ${this.modalId}`);
             }
@@ -100,7 +94,6 @@ class SharedVideoBrowser {
             const refreshBtn = document.getElementById(`${this.modalId}-refresh`);
             if (refreshBtn) {
                 refreshBtn.addEventListener('click', () => this.loadVideoList());
-                console.log(`[SharedVideoBrowser] Refresh button listener added for ${this.modalId}`);
             } else {
                 console.warn(`[SharedVideoBrowser] Refresh button not found for ${this.modalId}`);
             }
@@ -138,7 +131,6 @@ class SharedVideoBrowser {
      * Show the browser modal
      */
     async show() {
-        console.log('Showing video browser...');
         const modal = document.getElementById(this.modalId);
         if (modal) {
             modal.style.display = 'flex';
@@ -163,9 +155,7 @@ class SharedVideoBrowser {
      */
     async loadVideoList() {
         try {
-            console.log(`Loading video list from ${this.currentFolder} folder...`);
             const recordings = await ipcRenderer.invoke('get-recordings-list', this.currentFolder);
-            console.log('Recordings received:', recordings);
             this.displayVideoList(recordings);
         } catch (error) {
             console.error('Failed to load video list:', error);
@@ -236,7 +226,6 @@ class SharedVideoBrowser {
      * Handle video selection
      */
     selectVideo(video) {
-        console.log('Video selected:', video);
         
         if (this.onVideoSelected) {
             this.onVideoSelected(video);
@@ -250,7 +239,6 @@ class SharedVideoBrowser {
      * Handle events selection
      */
     selectEvents(video) {
-        console.log('Events selected:', video);
         
         if (this.onEventsSelected) {
             this.onEventsSelected(video);

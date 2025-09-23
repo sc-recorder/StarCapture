@@ -23,12 +23,10 @@ class RecordingController {
         this.markEventButton = document.getElementById('mark-event-btn');
         this.saveButton = document.getElementById('save-current-recording-btn');
 
-        console.log('Save button element found:', !!this.saveButton);
 
         // Ensure save button starts disabled
         if (this.saveButton) {
             this.saveButton.disabled = true;
-            console.log('Save button initialized as disabled');
         }
 
         // Setup event listeners
@@ -38,7 +36,6 @@ class RecordingController {
 
         if (this.saveButton) {
             this.saveButton.addEventListener('click', () => {
-                console.log('Save button event listener triggered');
                 this.saveRecording();
             });
         } else {
@@ -67,7 +64,6 @@ class RecordingController {
         
         // Listen for recording status
         ipcRenderer.on('recording-status', (event, status) => {
-            console.log('[RecordingController] Received recording-status event:', status);
             this.updateRecordingStatus(status);
         });
         
@@ -78,7 +74,6 @@ class RecordingController {
 
         // Listen for manual events created via hotkey
         ipcRenderer.on('manual-event-created', (event, manualEvent) => {
-            console.log('Manual event created via hotkey:', manualEvent);
             // The event will also come through the normal 'event' channel,
             // so we don't need to handle it specially here
         });
@@ -89,11 +84,9 @@ class RecordingController {
         });
         
         // Initial check of system ready status
-        console.log('RecordingController initialized. Initial systemReady:', window.systemReady);
         if (this.recordButton) {
             this.systemReady = window.systemReady || false;
             this.recordButton.disabled = !this.systemReady;
-            console.log('Initial record button disabled:', this.recordButton.disabled);
         }
 
         // Ensure save button stays disabled on startup regardless of any initial status
@@ -101,15 +94,10 @@ class RecordingController {
             this.saveButton.disabled = true;
             this.saveButton.style.opacity = '0.5';
             this.saveButton.style.cursor = 'not-allowed';
-            console.log('Save button forced disabled on startup');
-            console.log('Save button actual disabled state:', this.saveButton.disabled);
-            console.log('Save button HTML disabled attribute:', this.saveButton.hasAttribute('disabled'));
 
             // Double-check in a moment to catch any async changes
             setTimeout(() => {
                 if (this.saveButton) {
-                    console.log('After 100ms - disabled state:', this.saveButton.disabled);
-                    console.log('After 100ms - has disabled attribute:', this.saveButton.hasAttribute('disabled'));
                     if (!this.saveButton.disabled) {
                         console.error('WARNING: Save button was re-enabled somehow!');
                         this.saveButton.disabled = true;
@@ -123,11 +111,9 @@ class RecordingController {
         this.statusPollInterval = setInterval(() => {
             const currentReady = window.systemReady || false;
             if (currentReady !== this.systemReady) {
-                console.log('System ready state changed from', this.systemReady, 'to', currentReady);
                 this.systemReady = currentReady;
                 if (this.recordButton && !this.isRecording) {
                     this.recordButton.disabled = !this.systemReady;
-                    console.log('Record button disabled:', this.recordButton.disabled);
                 }
             }
         }, 500);
@@ -186,7 +172,6 @@ class RecordingController {
                         this.saveButton.disabled = false;
                         this.saveButton.style.opacity = '1';
                         this.saveButton.style.cursor = 'pointer';
-                        console.log('Save button enabled after stopping recording:', this.currentRecordingPath);
                     }
 
                     // Keep stats panel visible - don't hide it
@@ -204,7 +189,6 @@ class RecordingController {
                         this.saveButton.disabled = true;
                         this.saveButton.style.opacity = '0.5';
                         this.saveButton.style.cursor = 'not-allowed';
-                        console.log('Save button disabled when starting new recording');
                     }
 
                     // Clear previous stats before starting new recording
@@ -411,14 +395,12 @@ class RecordingController {
      * Update recording status from external event
      */
     updateRecordingStatus(status) {
-        console.log('Recording status update received:', status);
 
         // Update recording path if provided (we still need this for stats display)
         if (status.path || status.outputPath) {
             const newPath = status.path || status.outputPath;
             if (newPath) {
                 this.currentRecordingPath = newPath;
-                console.log('Recording path updated:', this.currentRecordingPath);
             }
         }
 
@@ -622,8 +604,6 @@ class RecordingController {
     async saveRecording() {
         console.log('=== Save Recording Called ===');
         console.log('Save button clicked');
-        console.log('Current recording path:', this.currentRecordingPath);
-        console.log('Is recording:', this.isRecording);
 
         if (!this.currentRecordingPath) {
             console.error('No recording path available');
@@ -641,10 +621,8 @@ class RecordingController {
             console.log('Calling IPC to move recording...');
             // Call IPC to move the recording
             const result = await ipcRenderer.invoke('move-recording', this.currentRecordingPath);
-            console.log('Move recording result:', result);
 
             if (result && result.success) {
-                console.log('Recording saved successfully to:', result.newPath);
 
                 // Clear the current recording path
                 this.currentRecordingPath = null;

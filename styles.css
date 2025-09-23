@@ -2109,7 +2109,9 @@ video::-webkit-media-controls-timeline {
     cursor: pointer;
     font-size: 12px;
     transition: all 0.2s;
-    margin-left: 10px;
+    position: absolute;
+    top: 10px;
+    right: 50px; /* Space for camera icon */
     opacity: 0;
     visibility: hidden;
 }
@@ -2124,6 +2126,48 @@ video::-webkit-media-controls-timeline {
     border-color: var(--text-secondary);
     color: #fff;
     transform: scale(1.05);
+}
+
+/* Main thumbnail camera icon button */
+.main-thumbnail-icon {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: rgba(255, 255, 255, 0.3);
+    padding: 4px 6px;
+    border-radius: 4px;
+    font-size: 14px;
+    cursor: pointer;
+    opacity: 0.3;
+    transition: all 0.2s ease;
+    z-index: 2;
+}
+
+.timeline-event:hover .main-thumbnail-icon {
+    opacity: 0.6;
+    color: rgba(255, 255, 255, 0.5);
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+.main-thumbnail-icon:hover {
+    opacity: 1 !important;
+    color: rgba(255, 255, 255, 0.8);
+    border-color: rgba(255, 255, 255, 0.4);
+    background: rgba(255, 255, 255, 0.05);
+    transform: scale(1.1);
+}
+
+.main-thumbnail-icon.active {
+    opacity: 1 !important;
+    color: #4CAF50;
+    border-color: #4CAF50;
+    background: rgba(76, 175, 80, 0.15);
+}
+
+.main-thumbnail-icon.active:hover {
+    background: rgba(76, 175, 80, 0.25);
 }
 
 .timeline-event.active {
@@ -5206,6 +5250,25 @@ video::-webkit-media-controls-timeline {
 
 .modal-content-medium {
     max-width: 500px;
+}
+
+/* Ensure thumbnail progress modal is centered when shown */
+#thumbnail-progress-modal {
+    align-items: center;
+    justify-content: center;
+}
+
+#thumbnail-progress-modal.modal {
+    /* When displayed, ensure it uses flex for centering */
+    align-items: center;
+    justify-content: center;
+}
+
+#thumbnail-progress-modal .modal-content {
+    position: relative;
+    transform: none;
+    top: auto;
+    left: auto;
 }
 
 /* Text colors for status and labels */

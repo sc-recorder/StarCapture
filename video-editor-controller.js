@@ -30,6 +30,8 @@ class VideoEditorController {
         this.markIn = null;
         this.markOut = null;
         this.fps = 30; // Default to 30fps, will update when video loads
+        this.generateThumbnails = false; // Checkbox state for thumbnail generation
+        this.selectedMainThumbnailEventId = null; // For tracking selected main thumbnail event
 
         // Audio mixer state
         this.audioTracks = [];
@@ -188,6 +190,14 @@ class VideoEditorController {
                 }
             });
         });
+
+        // Thumbnail generation checkbox
+        const thumbnailCheckbox = document.getElementById('generate-thumbnails-check');
+        if (thumbnailCheckbox) {
+            thumbnailCheckbox.addEventListener('change', (e) => {
+                this.generateThumbnails = e.target.checked;
+            });
+        }
         
         // Keyboard shortcuts
         document.addEventListener('keydown', (e) => {
@@ -344,7 +354,6 @@ class VideoEditorController {
      * Handle video selection from browser - loads both video and events
      */
     async handleVideoSelected(video) {
-        console.log('Video selected from browser:', video);
 
         // Load the video
         if (this.videoPlayer && video.path) {
@@ -422,13 +431,11 @@ class VideoEditorController {
      */
     async loadEventsFromFile(jsonPath) {
         try {
-            console.log('Loading events from:', jsonPath);
             const content = await ipcRenderer.invoke('read-file', jsonPath);
             const eventData = JSON.parse(content);
             
             if (eventData && eventData.events) {
                 this.currentEvents = eventData.events;
-                console.log(`Loaded ${this.currentEvents.length} events`);
                 
                 // Update timeline with events
                 this.updateTimeline();
@@ -466,14 +473,25 @@ class VideoEditorController {
             eventEl.className = `timeline-event ${event.category || event.type || ''} ${isOutOfBounds ? 'out-of-bounds' : ''}`;
             eventEl.dataset.index = index;
             eventEl.dataset.time = eventTime;
-            
+            eventEl.dataset.eventId = event.id;
+
             // Format the timecode
             const timecode = event.videoTimecode || this.formatTime(eventTime);
-            
+
+            // Check if this event is selected as main thumbnail
+            const isMainThumbnail = event.id === this.selectedMainThumbnailEventId;
+
             eventEl.innerHTML = `
-                <div class="timeline-event-time">${timecode}</div>
-                <div class="timeline-event-title">${event.name || event.type || 'Unknown Event'}</div>
-                <div class="timeline-event-desc">${event.message || ''}</div>
+                <div class="timeline-event-content">
+                    <div class="timeline-event-time">${timecode}</div>
+                    <div class="timeline-event-title">${event.name || event.type || 'Unknown Event'}</div>
+                    <div class="timeline-event-desc">${event.message || ''}</div>
+                </div>
+                <button class="main-thumbnail-icon ${isMainThumbnail ? 'active' : ''}"
+                        onclick="event.stopPropagation(); window.videoEditorController.toggleMainThumbnail('${event.id}')"
+                        title="Set as main thumbnail">
+                    📷
+                </button>
             `;
             
             // Add click handler to jump to event
@@ -484,17 +502,39 @@ class VideoEditorController {
     }
     
     /**
+     * Toggle main thumbnail selection for an event
+     */
+    toggleMainThumbnail(eventId) {
+        // If clicking the same event, deselect it
+        if (this.selectedMainThumbnailEventId === eventId) {
+            this.selectedMainThumbnailEventId = null;
+        } else {
+            // Select new event
+            this.selectedMainThumbnailEventId = eventId;
+        }
+
+        // Update all camera icons
+        document.querySelectorAll('.main-thumbnail-icon').forEach(icon => {
+            const eventEl = icon.closest('.timeline-event');
+            if (eventEl && eventEl.dataset.eventId === this.selectedMainThumbnailEventId) {
+                icon.classList.add('active');
+            } else {
+                icon.classList.remove('active');
+            }
+        });
+    }
+
+    /**
      * Jump to event in video
      */
     jumpToEvent(index) {
         const event = this.currentEvents[index];
         if (!event || !this.videoPlayer) return;
-        
-        console.log('Jumping to event:', event);
-        
+
+
         // Highlight the event
         this.highlightEvent(index);
-        
+
         // Set video time
         const time = event.videoOffset || 0;
         this.videoPlayer.currentTime = time;
@@ -546,7 +586,6 @@ class VideoEditorController {
 
             if (!result.canceled && result.filePaths.length > 0) {
                 const videoPath = result.filePaths[0];
-                console.log('Manual video selected:', videoPath);
 
                 // Clean up previous tracks if any
                 if (this.extractedAudioTracks.length > 0) {
@@ -608,7 +647,6 @@ class VideoEditorController {
             
             if (!result.canceled && result.filePaths.length > 0) {
                 const jsonPath = result.filePaths[0];
-                console.log('Manual events file selected:', jsonPath);
                 
                 // Load the events
                 await this.loadEventsFromFile(jsonPath);
@@ -667,9 +705,6 @@ class VideoEditorController {
                 events: this.currentEvents || [] // Include events for JSON export
             };
 
-            console.log('Export data for fluent-ffmpeg:', JSON.stringify(exportData, null, 2));
-            console.log('Audio segments being exported:', exportData.audioSegments);
-            console.log('Mark In/Out:', exportData.markIn, '->', exportData.markOut);
 
             // Update progress: cutting video
             this.updateExportProgress('cut');
@@ -691,6 +726,11 @@ class VideoEditorController {
                 // Update progress: saving
                 this.updateExportProgress('save');
                 await this.delay(500);
+
+                // Generate thumbnails if checkbox is checked
+                if (this.generateThumbnails && this.currentEvents && this.currentEvents.length > 0) {
+                    await this.generateThumbnailsForExport(exportSettings.outputPath);
+                }
 
                 // Mark all as completed
                 this.updateExportProgress('completed');
@@ -749,7 +789,6 @@ class VideoEditorController {
             const folderIndex = Math.max(recordingsIndex, savedIndex);
             const basePath = pathParts.slice(0, folderIndex).join('/');
             outputDir = `${basePath}/edited`;
-            console.log('Video is in structured folder, using edited folder:', outputDir);
         } else {
             // Fallback: Try to get base recording path from config
             let basePath = '';
@@ -778,11 +817,6 @@ class VideoEditorController {
         settings.outputPath = `${outputDir}\\${filename}.${container}`;
         settings.container = container;
 
-        console.log('Export settings:', {
-            inputVideo: this.currentVideo,
-            outputDir: outputDir,
-            outputPath: settings.outputPath
-        });
 
         // Input video
         settings.inputPath = this.currentVideo;
@@ -902,8 +936,6 @@ class VideoEditorController {
             return null;
         }
 
-        console.log('Building audio filter for segments:', settings.audioMixer.segments);
-        console.log('Extracted tracks available:', settings.extractedTracks);
 
         // Build a complex filter graph for audio mixing
         const filters = [];
@@ -935,7 +967,6 @@ class VideoEditorController {
                 inputIndex = settings.extractedTracks.indexOf(extractedTrack) + 1;
             }
 
-            console.log(`Segment ${index}: Track ${trackNum} -> Input ${inputIndex}, Time: ${segment.startTime}-${segment.endTime}`);
 
             // Create a filter for this segment
             const segmentFilter = `[${inputIndex}:a]`;
@@ -967,7 +998,6 @@ class VideoEditorController {
         if (inputs.length > 0) {
             filters.push(`${inputs.join('')}amix=inputs=${inputs.length}:duration=longest[mixed]`);
             const finalFilter = filters.join(';');
-            console.log('Final audio filter:', finalFilter);
             return finalFilter;
         }
 
@@ -979,7 +1009,6 @@ class VideoEditorController {
      */
     showExportProgress(message) {
         // You could create a progress modal here
-        console.log('Export progress:', message);
     }
 
     /**
@@ -994,11 +1023,6 @@ class VideoEditorController {
      * Called when video metadata is loaded
      */
     onVideoLoaded() {
-        console.log('Video loaded:', {
-            duration: this.videoPlayer.duration,
-            width: this.videoPlayer.videoWidth,
-            height: this.videoPlayer.videoHeight
-        });
 
         // Force a repaint for H.265 videos which may have rendering issues
         // Wrapped in try-catch to prevent white screen issues
@@ -1019,7 +1043,6 @@ class VideoEditorController {
         const wrapper = this.videoPlayer.parentElement;
         if (wrapper) {
             const aspectRatio = this.videoPlayer.videoWidth / this.videoPlayer.videoHeight;
-            console.log('Video aspect ratio:', aspectRatio);
 
             // Update wrapper aspect ratio to match video
             wrapper.style.aspectRatio = `${aspectRatio}`;
@@ -1162,7 +1185,6 @@ class VideoEditorController {
         if (!this.videoPlayer || !this.videoPlayer.duration) return;
 
         this.markIn = this.videoPlayer.currentTime;
-        console.log('Mark In set at:', this.markIn);
 
         // Update display
         const markInTime = document.getElementById('mark-in-time');
@@ -1190,7 +1212,6 @@ class VideoEditorController {
         if (!this.videoPlayer || !this.videoPlayer.duration) return;
 
         this.markOut = this.videoPlayer.currentTime;
-        console.log('Mark Out set at:', this.markOut);
 
         // Update display
         const markOutTime = document.getElementById('mark-out-time');
@@ -1216,7 +1237,6 @@ class VideoEditorController {
      */
     clearInPoint() {
         this.markIn = null;
-        console.log('Mark In cleared');
 
         const markInTime = document.getElementById('mark-in-time');
         if (markInTime) {
@@ -1234,7 +1254,6 @@ class VideoEditorController {
      */
     clearOutPoint() {
         this.markOut = null;
-        console.log('Mark Out cleared');
 
         const markOutTime = document.getElementById('mark-out-time');
         if (markOutTime) {
@@ -1265,7 +1284,6 @@ class VideoEditorController {
         const newTime = Math.max(0, Math.min(this.videoPlayer.duration, this.videoPlayer.currentTime + timeStep));
         this.videoPlayer.currentTime = newTime;
         
-        console.log(`Stepped ${direction > 0 ? 'forward' : 'backward'} ${frameCount} frame(s) to ${newTime.toFixed(3)}s`);
     }
     
     /**
@@ -1441,7 +1459,6 @@ class VideoEditorController {
      * Toggle audio track on/off
      */
     toggleAudioTrack(trackIndex, enabled) {
-        console.log(`Toggle track ${trackIndex + 1}: ${enabled}`);
         // Note: HTML5 video doesn't support individual track control for MKV files
         // This would need to be handled during export with FFmpeg
         // Store the state for export
@@ -1455,7 +1472,6 @@ class VideoEditorController {
      * Set audio track volume
      */
     setAudioTrackVolume(trackIndex, volume) {
-        console.log(`Set track ${trackIndex + 1} volume: ${volume}%`);
         // Note: HTML5 video doesn't support individual track volume for MKV files
         // This would need to be handled during export with FFmpeg
         // Store the state for export
@@ -1521,7 +1537,6 @@ class VideoEditorController {
      * Test function to load a video directly (for Phase 2 testing)
      */
     testLoadVideo(videoPath) {
-        console.log('Test loading video:', videoPath);
         
         if (this.videoPlayer) {
             this.currentVideo = videoPath;
@@ -1705,10 +1720,8 @@ class VideoEditorController {
             }
 
             const tracks = detectResult.tracks || [];
-            console.log(`Detected ${tracks.length} audio tracks`);
 
             if (tracks.length > 1) {
-                console.log('Multiple audio tracks detected, extracting...');
                 this.hasMultipleTracks = true;
 
                 // Show initial extraction message
@@ -1730,11 +1743,9 @@ class VideoEditorController {
 
                 if (extractResult.success) {
                     this.extractedAudioTracks = extractResult.tracks || [];
-                    console.log(`Extracted ${this.extractedAudioTracks.length} audio tracks`);
                     // Don't log the entire result object - it might be large or have circular references
 
                     // Enable multi-track mode in UI - defer to prevent blocking
-                    console.log('Scheduling multi-track mode enablement...');
 
                     // Use requestAnimationFrame to ensure UI is ready
                     requestAnimationFrame(() => {
@@ -1746,13 +1757,11 @@ class VideoEditorController {
                                     return;
                                 }
 
-                                console.log('Enabling multi-track mode...');
 
                                 // Add extra delay to ensure video element is fully loaded
                                 await new Promise(resolve => setTimeout(resolve, 200));
 
                                 await this.enableMultiTrackMode();
-                                console.log('Multi-track mode enabled successfully');
 
                                 // Ensure video is visible after extraction completes
                                 if (this.videoPlayer) {
@@ -1787,7 +1796,6 @@ class VideoEditorController {
                     this.hideLoadingOverlay();
                 }
             } else {
-                console.log('Single audio track detected, using simple playback mode');
                 this.hasMultipleTracks = false;
                 this.extractedAudioTracks = [];
                 this.disableMultiTrackMode();
@@ -1932,12 +1940,10 @@ class VideoEditorController {
      */
     async initializeWebAudio() {
         if (!this.extractedAudioTracks || this.extractedAudioTracks.length === 0) {
-            console.log('[VideoEditor] No extracted tracks to load in Web Audio');
             return;
         }
 
         try {
-            console.log('[VideoEditor] Initializing Web Audio Manager...');
 
             // Give the renderer MORE time to breathe before heavy operations - increased from 100ms to 250ms
             await new Promise(resolve => setTimeout(resolve, 250));
@@ -1967,16 +1973,12 @@ class VideoEditorController {
             }
 
             // Load extracted tracks
-            console.log(`[VideoEditor] Loading ${this.extractedAudioTracks.length} extracted tracks...`);
-            console.log('[VideoEditor] Extracted tracks data:', this.extractedAudioTracks);
 
             for (const track of this.extractedAudioTracks) {
                 try {
-                    console.log(`[VideoEditor] Attempting to load track ${track.trackIndex} from path: ${track.path}`);
 
                     // Skip file verification here - let WebAudioManager handle it asynchronously
                     // This avoids blocking the renderer with synchronous fs operations
-                    console.log(`[VideoEditor] Attempting to load track from: ${track.path}`);
 
                     // Give renderer MORE time to process between tracks - increased from 50ms to 150ms
                     await new Promise(resolve => setTimeout(resolve, 150));
@@ -1997,7 +1999,6 @@ class VideoEditorController {
                     if (!success) {
                         console.error(`[VideoEditor] Failed to load track ${track.trackIndex}`);
                     } else {
-                        console.log(`[VideoEditor] Successfully loaded track ${track.trackIndex}`);
                     }
                 } catch (error) {
                     console.error(`[VideoEditor] Error loading track ${track.trackIndex}:`, error);
@@ -2006,11 +2007,9 @@ class VideoEditorController {
                 }
             }
 
-            console.log('[VideoEditor] Web Audio Manager initialized with extracted tracks');
 
             // Mute video element audio when using Web Audio
             this.videoPlayer.muted = true;
-            console.log('[VideoEditor] Video element muted for multi-track playback');
 
             // Update the track timeline UI with extracted tracks
             this.detectAudioTracks();
@@ -2020,7 +2019,6 @@ class VideoEditorController {
 
             // Expose to window for debugging
             window.webAudioManager = this.webAudioManager;
-            console.log('[VideoEditor] Web Audio Manager exposed as window.webAudioManager for debugging');
 
         } catch (error) {
             console.error('[VideoEditor] Failed to initialize Web Audio:', error);
@@ -2031,7 +2029,6 @@ class VideoEditorController {
      * Detect and load audio tracks from video
      */
     detectAudioTracks() {
-        console.log('Detecting audio tracks...');
 
         // Clear existing tracks
         this.audioTracks = [];
@@ -2891,6 +2888,128 @@ class VideoEditorController {
     }
 
     /**
+     * Generate thumbnails for exported video
+     */
+    async generateThumbnailsForExport(exportedVideoPath) {
+
+        try {
+            const parsed = path.parse(exportedVideoPath);
+            const thumbnailFolder = path.join(parsed.dir, `${parsed.name}_thumbs`);
+
+            // Filter events within mark in/out range if set
+            let eventsToProcess = this.currentEvents;
+            if (this.markIn !== null || this.markOut !== null) {
+                const markIn = this.markIn || 0;
+                const markOut = this.markOut || Infinity;
+
+                eventsToProcess = this.currentEvents.filter(event => {
+                    const eventTime = event.videoOffset || 0;
+                    return eventTime >= markIn && eventTime <= markOut;
+                }).map(event => {
+                    // Adjust video offset to be relative to the new start time
+                    return {
+                        ...event,
+                        videoOffset: (event.videoOffset || 0) - (markIn || 0)
+                    };
+                });
+            }
+
+            if (eventsToProcess.length === 0) {
+                return;
+            }
+
+            // Use the selected main thumbnail event ID if available
+            let mainEventId = this.selectedMainThumbnailEventId;
+
+            // If a main event was selected but it's outside the clip bounds, don't use it
+            if (mainEventId && (this.markIn !== null || this.markOut !== null)) {
+                const selectedEvent = this.currentEvents.find(e => e.id === mainEventId);
+                if (selectedEvent) {
+                    const eventTime = selectedEvent.videoOffset || 0;
+                    const markIn = this.markIn || 0;
+                    const markOut = this.markOut || Infinity;
+                    if (eventTime < markIn || eventTime > markOut) {
+                        mainEventId = null; // Event is outside bounds, use random selection
+                    }
+                }
+            }
+
+            // Update export modal to show thumbnail generation step
+            this.updateExportProgress('thumbnails');
+
+            // Listen for thumbnail progress updates
+            const progressListener = (event, progress) => {
+                // Update the export modal's progress details with thumbnail progress
+                const percentEl = document.getElementById('export-progress-percent');
+                const detailsEl = document.getElementById('export-progress-time');
+                if (percentEl) {
+                    const percent = Math.round((progress.current / progress.total) * 100);
+                    percentEl.textContent = `${percent}%`;
+                }
+                if (detailsEl) {
+                    detailsEl.textContent = `Thumbnail ${progress.current} of ${progress.total}`;
+                }
+            };
+
+            ipcRenderer.on('thumbnail-progress', progressListener);
+
+            // Generate thumbnails
+            const result = await ipcRenderer.invoke('generate-thumbnails', {
+                videoPath: exportedVideoPath,
+                events: eventsToProcess,
+                outputFolder: thumbnailFolder,
+                mainEventId: mainEventId
+            });
+
+            // Remove progress listener
+            ipcRenderer.removeListener('thumbnail-progress', progressListener);
+
+            if (result.success) {
+
+                // Update the exported JSON file if it exists
+                const jsonPath = exportedVideoPath.replace(/\.[^.]+$/, '.json');
+                try {
+                    const fs = require('fs').promises;
+                    const jsonExists = await fs.access(jsonPath).then(() => true).catch(() => false);
+
+                    if (jsonExists) {
+                        // Build thumbnail map
+                        const thumbnailMap = {};
+                        result.thumbnails.forEach(thumb => {
+                            if (thumb.success) {
+                                thumbnailMap[thumb.eventId] = `${parsed.name}_thumbs/${thumb.eventId}.jpg`;
+                            }
+                        });
+
+                        // Update JSON with thumbnails
+                        const content = await fs.readFile(jsonPath, 'utf8');
+                        const data = JSON.parse(content);
+
+                        if (result.mainThumbnail) {
+                            data.metadata = data.metadata || {};
+                            data.metadata.videoThumbnail = result.mainThumbnail;
+                        }
+
+                        data.events.forEach(event => {
+                            if (thumbnailMap[event.id]) {
+                                event.thumbnail = thumbnailMap[event.id];
+                            }
+                        });
+
+                        await fs.writeFile(jsonPath, JSON.stringify(data, null, 2));
+                    }
+                } catch (error) {
+                    console.error('Failed to update exported JSON with thumbnails:', error);
+                }
+            } else {
+                console.error('Thumbnail generation failed:', result.error);
+            }
+        } catch (error) {
+            console.error('Error generating thumbnails for export:', error);
+        }
+    }
+
+    /**
      * Apply preset configuration
      */
     applyPreset(preset) {
@@ -3055,9 +3174,6 @@ class VideoEditorController {
             segments: []
         };
 
-        console.log('Getting audio mixer config...');
-        console.log('Audio tracks:', this.audioTracks);
-        console.log('Audio segments:', this.audioSegments);
 
         // Collect enabled tracks and their segments
         this.audioTracks.forEach(track => {
@@ -3078,7 +3194,6 @@ class VideoEditorController {
             }
         });
 
-        console.log('Audio mixer config for export:', config);
         return config;
     }
 
@@ -3378,15 +3493,17 @@ class VideoEditorController {
             'cut': 'step-cut',
             'audio': 'step-audio',
             'encode': 'step-encode',
-            'save': 'step-save'
+            'save': 'step-save',
+            'thumbnails': 'step-thumbnails'
         };
 
         const stepElements = {
             'prepare': 0,
-            'cut': 20,
-            'audio': 40,
-            'encode': 60,
-            'save': 80,
+            'cut': 15,
+            'audio': 30,
+            'encode': 50,
+            'save': 70,
+            'thumbnails': 85,
             'completed': 100
         };
 
@@ -3409,7 +3526,7 @@ class VideoEditorController {
             if (progressPercent) progressPercent.textContent = '100%';
         } else if (steps[step]) {
             // Mark previous steps as completed
-            const stepOrder = ['prepare', 'cut', 'audio', 'encode', 'save'];
+            const stepOrder = ['prepare', 'cut', 'audio', 'encode', 'save', 'thumbnails'];
             const currentIndex = stepOrder.indexOf(step);
 
             stepOrder.forEach((s, index) => {

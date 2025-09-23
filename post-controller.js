@@ -27,6 +27,7 @@ class PostController {
         this.eventCheckInterval = null;
         this.draggedElement = null;
         this.confirmCallback = null;  // For generic confirm dialog
+        this.selectedMainThumbnailEventId = null;  // For tracking selected main thumbnail event
 
         // Initialize shared video browser with error handling
         try {
@@ -73,7 +74,6 @@ class PostController {
         // Check for last recording
         const lastRecording = await this.getLastRecording();
         if (lastRecording) {
-            console.log('Last recording found:', lastRecording);
         }
     }
     
@@ -105,7 +105,7 @@ class PostController {
 
         // Custom event controls
         document.getElementById('insert-event-btn')?.addEventListener('click', () => this.openCustomEventDialog());
-        
+
         // Timeline controls
         document.getElementById('zoom-in-btn')?.addEventListener('click', () => this.zoomTimeline(1.5));
         document.getElementById('zoom-out-btn')?.addEventListener('click', () => this.zoomTimeline(0.67));
@@ -148,7 +148,6 @@ class PostController {
      * Load video file by path
      */
     loadVideoFile(videoPath) {
-        console.log('Loading video:', videoPath);
 
         // Convert path for video element
         const fileUrl = `file://${videoPath.replace(/\\/g, '/')}`;
@@ -201,12 +200,6 @@ class PostController {
 
         // Log when video loads successfully
         this.videoPlayer.onloadedmetadata = () => {
-            console.log('Video loaded successfully:', videoPath);
-            console.log('Video codec info:', {
-                duration: this.videoPlayer.duration,
-                videoWidth: this.videoPlayer.videoWidth,
-                videoHeight: this.videoPlayer.videoHeight
-            });
         };
 
         // Try to load corresponding events file
@@ -227,14 +220,83 @@ class PostController {
             return;
         }
 
+        // Ask if user wants to generate thumbnails
+        const generateThumbnails = await this.confirmGenerateThumbnails();
+
         try {
+            // First, save the recording (move to saved folder)
             const result = await ipcRenderer.invoke('move-recording', this.currentVideo);
 
             if (result.success) {
-                this.showAlert('Recording saved successfully!');
-
-                // Update current video path to the new location
+                // Update current paths to the new location
                 this.currentVideo = result.newPath;
+                if (this.currentEventsFile && result.newEventsPath) {
+                    this.currentEventsFile = result.newEventsPath;
+                }
+
+                // Generate thumbnails if user confirmed (after moving to saved folder)
+                if (generateThumbnails && this.events.length > 0) {
+                    const filteredEvents = this.filteredEvents.length > 0 ? this.filteredEvents : this.events;
+                    if (filteredEvents.length > 0) {
+                        // Get selected main thumbnail event from timeline
+                        const mainEventId = this.getSelectedMainThumbnailEvent();
+
+                        // Show progress modal
+                        this.showThumbnailProgress(0, filteredEvents.length);
+
+                        try {
+                            const parsed = path.parse(this.currentVideo); // Now using the new saved path
+                            const thumbnailFolder = path.join(parsed.dir, `${parsed.name}_thumbs`);
+
+                            // Listen for progress updates
+                            ipcRenderer.on('thumbnail-progress', (event, progress) => {
+                                this.updateThumbnailProgress(progress);
+                            });
+
+                            const thumbnailResult = await ipcRenderer.invoke('generate-thumbnails', {
+                                videoPath: this.currentVideo,
+                                events: filteredEvents,
+                                outputFolder: thumbnailFolder,
+                                mainEventId: mainEventId
+                            });
+
+                            // Remove progress listener
+                            ipcRenderer.removeAllListeners('thumbnail-progress');
+
+                            if (thumbnailResult.success) {
+                                // Build thumbnail map for individual event thumbnails
+                                const thumbnailMap = {};
+                                thumbnailResult.thumbnails.forEach(thumb => {
+                                    if (thumb.success) {
+                                        thumbnailMap[thumb.eventId] = `${parsed.name}_thumbs/${thumb.eventId}.jpg`;
+                                    }
+                                });
+
+                                // Update events JSON with thumbnail paths
+                                if (this.currentEventsFile) {
+                                    await this.updateEventMetadataWithFile(this.currentEventsFile, thumbnailMap, thumbnailResult.mainThumbnail);
+                                }
+
+                                this.hideThumbnailProgress();
+
+                                this.showAlert(`Recording saved successfully!<br>Generated ${thumbnailResult.count} thumbnails.`);
+                            } else {
+                                this.hideThumbnailProgress();
+                                console.error(`Thumbnail generation failed: ${thumbnailResult.error}`);
+                                this.showAlert('Recording saved successfully!<br>(Thumbnail generation failed)');
+                            }
+                        } catch (error) {
+                            console.error('Thumbnail generation error:', error);
+                            ipcRenderer.removeAllListeners('thumbnail-progress');
+                            this.hideThumbnailProgress();
+                            this.showAlert('Recording saved successfully!<br>(Thumbnail generation failed)');
+                        }
+                    } else {
+                        this.showAlert('Recording saved successfully!');
+                    }
+                } else {
+                    this.showAlert('Recording saved successfully!');
+                }
 
                 // Disable save button since it's no longer in recordings folder
                 const saveBtn = document.getElementById('save-recording-btn');
@@ -248,6 +310,76 @@ class PostController {
             console.error('Failed to save recording:', error);
             this.showAlert('Failed to save recording');
         }
+    }
+
+    /**
+     * Confirm if user wants to generate thumbnails
+     */
+    async confirmGenerateThumbnails() {
+        return new Promise((resolve) => {
+            try {
+                // Create custom dialog for Yes/No options
+                const title = 'Generate Thumbnails?';
+                const message = 'Would you like to generate thumbnails for the events in this video?<br><br>This will create preview images for each event and a main thumbnail for the video.';
+
+                const confirmTitle = document.getElementById('confirm-title');
+                const confirmMessage = document.getElementById('confirm-message');
+                const okBtn = document.getElementById('confirm-ok-btn');
+                const cancelBtn = document.getElementById('confirm-cancel-btn');
+                const confirmDialog = document.getElementById('confirm-dialog');
+
+                if (!confirmTitle || !confirmMessage || !okBtn || !cancelBtn || !confirmDialog) {
+                    console.error('Confirm dialog elements not found');
+                    resolve(false);
+                    return;
+                }
+
+                confirmTitle.textContent = title;
+                confirmMessage.innerHTML = message;
+
+                // Set button texts
+                okBtn.textContent = 'Yes, Generate';
+                cancelBtn.textContent = 'No, Skip';
+
+                // Remove the onclick handler temporarily
+                const originalOnclick = cancelBtn.onclick;
+                cancelBtn.onclick = null;
+
+                // Handle Yes click
+                const handleYes = () => {
+                    okBtn.removeEventListener('click', handleYes);
+                    cancelBtn.removeEventListener('click', handleNo);
+                    cancelBtn.onclick = originalOnclick;
+                    confirmDialog.style.display = 'none';
+                    resolve(true);
+                };
+
+                // Handle No click
+                const handleNo = () => {
+                    okBtn.removeEventListener('click', handleYes);
+                    cancelBtn.removeEventListener('click', handleNo);
+                    cancelBtn.onclick = originalOnclick;
+                    confirmDialog.style.display = 'none';
+                    resolve(false);
+                };
+
+                okBtn.addEventListener('click', handleYes);
+                cancelBtn.addEventListener('click', handleNo);
+
+                // Show the dialog
+                confirmDialog.style.display = 'flex';
+            } catch (error) {
+                console.error('Error showing confirm dialog:', error);
+                resolve(false);
+            }
+        });
+    }
+
+    /**
+     * Get selected main thumbnail event from timeline
+     */
+    getSelectedMainThumbnailEvent() {
+        return this.selectedMainThumbnailEventId;
     }
 
     /**
@@ -284,10 +416,8 @@ class PostController {
         try {
             const exists = await ipcRenderer.invoke('file-exists', eventsPath);
             if (exists) {
-                console.log('Found matching events file:', eventsPath);
                 this.loadEventsFile(eventsPath);
             } else {
-                console.log('No matching events file found');
             }
         } catch (error) {
             console.error('Error checking for events file:', error);
@@ -306,7 +436,6 @@ class PostController {
                 this.events = data.events;
                 this.filteredEvents = [...this.events];
                 this.currentEventsFile = eventsPath;  // Track the file path
-                console.log(`Loaded ${this.events.length} events from ${eventsPath}`);
                 
                 // Analyze events for filter options
                 this.analyzeEvents();
@@ -335,17 +464,21 @@ class PostController {
      */
     updateTimeline() {
         if (!this.timelineEvents) return;
-        
+
         this.timelineEvents.innerHTML = '';
-        
+
         this.filteredEvents.forEach((event, index) => {
             const eventEl = document.createElement('div');
             eventEl.className = `timeline-event ${event.category || event.type}`;
             eventEl.dataset.index = index;
             eventEl.dataset.time = event.videoOffset || 0;
+            eventEl.dataset.eventId = event.id;
 
             // Check if this is a manual/editable event
             const isEditable = event.type === 'manual' || event.data?.editable === true;
+
+            // Check if this event is selected as main thumbnail
+            const isMainThumbnail = event.id === this.selectedMainThumbnailEventId;
 
             eventEl.innerHTML = `
                 <div class="timeline-event-content">
@@ -358,11 +491,39 @@ class PostController {
                         ✏️
                     </button>
                 ` : ''}
+                <button class="main-thumbnail-icon ${isMainThumbnail ? 'active' : ''}"
+                        onclick="event.stopPropagation(); window.postController.toggleMainThumbnail('${event.id}')"
+                        title="Set as main thumbnail">
+                    📷
+                </button>
             `;
 
             eventEl.addEventListener('click', () => this.jumpToEvent(index));
-            
+
             this.timelineEvents.appendChild(eventEl);
+        });
+    }
+
+    /**
+     * Toggle main thumbnail selection for an event
+     */
+    toggleMainThumbnail(eventId) {
+        // If clicking the same event, deselect it
+        if (this.selectedMainThumbnailEventId === eventId) {
+            this.selectedMainThumbnailEventId = null;
+        } else {
+            // Select new event
+            this.selectedMainThumbnailEventId = eventId;
+        }
+
+        // Update all camera icons
+        document.querySelectorAll('.main-thumbnail-icon').forEach(icon => {
+            const eventEl = icon.closest('.timeline-event');
+            if (eventEl && eventEl.dataset.eventId === this.selectedMainThumbnailEventId) {
+                icon.classList.add('active');
+            } else {
+                icon.classList.remove('active');
+            }
         });
     }
     
@@ -1122,24 +1283,20 @@ class PostController {
         // Show upload dialog with video object including event info
         this.uploadDialog.show(videoObject, {
             onUploadQueued: (uploadId, accountName) => {
-                console.log(`Video queued for upload to ${accountName} (${uploadId})`);
                 // Could show a notification here
             }
         });
     }
 
     onVideoLoaded() {
-        console.log('Video loaded, duration:', this.videoPlayer.duration);
 
         // Check if video has multiple audio tracks (limited browser support)
         if (this.videoPlayer.audioTracks && this.videoPlayer.audioTracks.length > 0) {
-            console.log(`Video has ${this.videoPlayer.audioTracks.length} audio tracks`);
             // Try to enable all tracks (may not work in all browsers)
             for (let i = 0; i < this.videoPlayer.audioTracks.length; i++) {
                 this.videoPlayer.audioTracks[i].enabled = true;
             }
         } else {
-            console.log('Browser does not support audioTracks API or video has single track');
         }
 
         // Enable insert event button
@@ -1157,7 +1314,6 @@ class PostController {
         const wrapper = this.videoPlayer.parentElement;
         if (wrapper) {
             const aspectRatio = this.videoPlayer.videoWidth / this.videoPlayer.videoHeight;
-            console.log('Video aspect ratio:', aspectRatio);
 
             // Update wrapper aspect ratio to match video
             wrapper.style.aspectRatio = `${aspectRatio}`;
@@ -1291,7 +1447,6 @@ class PostController {
      */
     zoomTimeline(factor) {
         // Adjust timeline scale
-        console.log('Zoom timeline by factor:', factor);
     }
     
     /**
@@ -1299,7 +1454,6 @@ class PostController {
      */
     fitTimeline() {
         // Reset timeline scale
-        console.log('Fit timeline to view');
     }
     
     /**
@@ -1319,7 +1473,6 @@ class PostController {
      * Show video browser modal
      */
     async showVideoBrowser() {
-        console.log('Showing video browser...');
         if (this.videoBrowser) {
             await this.videoBrowser.show();
         } else {
@@ -1331,7 +1484,6 @@ class PostController {
      * Handle video selection from browser
      */
     handleVideoSelected(video) {
-        console.log('Video selected from browser:', video);
         this.loadVideoFile(video.path);
     }
     
@@ -1357,9 +1509,7 @@ class PostController {
      */
     async loadVideoList() {
         try {
-            console.log('Loading video list...');
             const recordings = await ipcRenderer.invoke('get-recordings-list');
-            console.log('Recordings received:', recordings);
             this.displayVideoList(recordings);
         } catch (error) {
             console.error('Failed to load video list:', error);
@@ -1422,7 +1572,6 @@ class PostController {
      * Load video from browser selection
      */
     async loadFromBrowser(videoPath) {
-        console.log('Loading from browser:', videoPath);
         this.hideVideoBrowser();
         this.loadVideoFile(videoPath);
     }
@@ -1461,7 +1610,6 @@ class PostController {
      */
     analyzeEvents() {
         if (!this.events || this.events.length === 0) {
-            console.log('No events to analyze');
             return;
         }
         
@@ -1595,12 +1743,7 @@ class PostController {
             fieldValues
         };
         
-        console.log('Filter options analyzed:', {
-            fields: availableFields.length,
-            totalValues: Object.values(fieldValues).reduce((sum, vals) => sum + vals.length, 0)
-        });
         
-        console.log('Available fields:', availableFields.map(f => f.label));
     }
     
     /**
@@ -1611,9 +1754,10 @@ class PostController {
         const quickExcludes = document.getElementById('quick-excludes');
         if (quickExcludes) {
             quickExcludes.innerHTML = '';
-            
+
             // Add quick exclude for low severity if it exists
-            if (this.filterOptions.severities.includes('low')) {
+            if (this.filterOptions && this.filterOptions.fieldValues && this.filterOptions.fieldValues.severity &&
+                this.filterOptions.fieldValues.severity.includes('low')) {
                 const btn = document.createElement('button');
                 btn.textContent = 'Hide Low Severity';
                 btn.onclick = () => this.addQuickExclude('severity', 'low');
@@ -1621,11 +1765,12 @@ class PostController {
             }
             
             // Add quick exclude for ship enter/exit if they exist
-            const hasEnter = this.filterOptions.eventTypes.some(([id]) => 
-                id === 'seat_entered' || id === 'vehicle_entered'
+            const eventTypes = this.filterOptions?.fieldValues?.type || [];
+            const hasEnter = eventTypes.some(type =>
+                type === 'seat_entered' || type === 'vehicle_entered'
             );
-            const hasExit = this.filterOptions.eventTypes.some(([id]) => 
-                id === 'seat_exited' || id === 'vehicle_exited'
+            const hasExit = eventTypes.some(type =>
+                type === 'seat_exited' || type === 'vehicle_exited'
             );
             
             if (hasEnter || hasExit) {
@@ -1687,10 +1832,6 @@ class PostController {
             const content = await fs.readFile(patternsPath, 'utf8');
             this.eventPatterns = JSON.parse(content);
             
-            console.log('Loaded event patterns:', {
-                categories: Object.keys(this.eventPatterns.categories || {}),
-                patterns: this.eventPatterns.patterns?.length || 0
-            });
         } catch (error) {
             console.error('Failed to load event patterns:', error);
             this.eventPatterns = { categories: {}, patterns: [] };
@@ -1762,7 +1903,6 @@ class PostController {
                 // File exists, create backup
                 const backupPath = await this.getNextBackupFilename(savePath);
                 await fs.rename(savePath, backupPath);
-                console.log(`Backed up original to: ${backupPath}`);
                 
                 // Show info about backup
                 this.showAlert(
@@ -1940,11 +2080,9 @@ class PostController {
                         if (valueExists) {
                             validatedExcludeFilters.push(filter);
                         } else {
-                            console.log(`Skipping filter: value '${filter.value}' not found in field '${filter.field}'`);
                             skippedCount++;
                         }
                     } else {
-                        console.log(`Skipping filter: field '${filter.field}' not found in current data`);
                         skippedCount++;
                     }
                 }
@@ -1963,11 +2101,9 @@ class PostController {
                         if (valueExists) {
                             validatedIncludeFilters.push(filter);
                         } else {
-                            console.log(`Skipping filter: value '${filter.value}' not found in field '${filter.field}'`);
                             skippedCount++;
                         }
                     } else {
-                        console.log(`Skipping filter: field '${filter.field}' not found in current data`);
                         skippedCount++;
                     }
                 }
@@ -2002,10 +2138,8 @@ class PostController {
                 if (window.NotificationManager) {
                     window.NotificationManager.warning(message, 5000);
                 } else {
-                    console.log(message);
                 }
             } else {
-                console.log(`Loaded filter template: ${templateName} (${totalAppliedFilters} filters applied)`);
             }
 
             // Re-render and apply
@@ -2055,12 +2189,10 @@ class PostController {
     async refreshTemplateList() {
         const select = document.getElementById('filter-templates');
         if (!select) {
-            console.log('Filter templates select not found');
             return;
         }
 
         const templates = await this.loadFilterTemplates();
-        console.log('Loaded templates for dropdown:', templates);
 
         // Clear and rebuild options
         select.innerHTML = '<option value="">Load Template...</option>';
@@ -2072,7 +2204,6 @@ class PostController {
             select.appendChild(option);
         });
 
-        console.log('Filter dropdown populated with', Object.keys(templates).length, 'templates');
     }
     
     /**
@@ -2116,6 +2247,97 @@ class PostController {
         document.getElementById('confirm-dialog').style.display = 'none';
     }
     
+
+    /**
+     * Update event metadata with thumbnails using specific file
+     */
+    async updateEventMetadataWithFile(filePath, thumbnailMap, mainThumbnail) {
+        if (!filePath) {
+            console.warn('No events file path provided');
+            return;
+        }
+
+        try {
+            const fs = require('fs').promises;
+
+            // Read existing JSON
+            const content = await fs.readFile(filePath, 'utf8');
+            const data = JSON.parse(content);
+
+            // Update metadata with main thumbnail
+            if (mainThumbnail) {
+                data.metadata = data.metadata || {};
+                data.metadata.videoThumbnail = mainThumbnail;
+            }
+
+            // Update individual event thumbnails
+            if (data.events) {
+                data.events.forEach(event => {
+                    if (thumbnailMap[event.id]) {
+                        event.thumbnail = thumbnailMap[event.id];
+                    }
+                });
+            }
+
+            // Save updated JSON
+            await fs.writeFile(filePath, JSON.stringify(data, null, 2), 'utf8');
+        } catch (error) {
+            console.error('Failed to update event metadata:', error);
+            // Don't throw, just log the error
+        }
+    }
+
+    /**
+     * Update event metadata with thumbnails (legacy)
+     */
+    async updateEventMetadata(thumbnailMap, mainThumbnail) {
+        if (this.currentEventsFile) {
+            return this.updateEventMetadataWithFile(this.currentEventsFile, thumbnailMap, mainThumbnail);
+        }
+        console.warn('No events file loaded');
+    }
+
+    /**
+     * Show thumbnail progress modal
+     */
+    showThumbnailProgress(current, total) {
+        const modal = document.getElementById('thumbnail-progress-modal');
+        if (modal) {
+            modal.style.display = 'flex';
+            document.getElementById('thumbnail-current').textContent = current;
+            document.getElementById('thumbnail-total').textContent = total;
+            document.getElementById('thumbnail-progress-fill').style.width = '0%';
+        }
+    }
+
+    /**
+     * Update thumbnail progress
+     */
+    updateThumbnailProgress(progress) {
+        const current = document.getElementById('thumbnail-current');
+        const progressFill = document.getElementById('thumbnail-progress-fill');
+        const currentEvent = document.getElementById('thumbnail-current-event');
+
+        if (current) current.textContent = progress.current;
+        if (progressFill) {
+            const percent = (progress.current / progress.total) * 100;
+            progressFill.style.width = `${percent}%`;
+        }
+        if (currentEvent) {
+            currentEvent.textContent = `Processing: ${progress.eventName || 'Event'}`;
+        }
+    }
+
+    /**
+     * Hide thumbnail progress modal
+     */
+    hideThumbnailProgress() {
+        const modal = document.getElementById('thumbnail-progress-modal');
+        if (modal) {
+            modal.style.display = 'none';
+        }
+    }
+
     /**
      * Get next available backup filename
      */
@@ -2124,7 +2346,7 @@ class PostController {
         const parsed = path.parse(originalPath);
         let counter = 1;
         let backupPath;
-        
+
         // Find next available .old-N filename
         while (true) {
             backupPath = path.join(parsed.dir, `${parsed.name}.old-${counter}${parsed.ext}`);
@@ -2387,7 +2609,6 @@ class PostController {
 
         // Write to file
         await fs.writeFile(this.currentEventsFile, JSON.stringify(data, null, 2));
-        console.log(`Saved ${this.events.length} events to ${this.currentEventsFile}`);
     }
 
 }

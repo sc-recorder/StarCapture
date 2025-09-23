@@ -46,7 +46,6 @@ class UploadQueueController {
                     modalId: 'upload-video-browser-modal',
                     onVideoSelected: (video) => this.handleVideoSelected(video)
                 });
-                console.log('SharedVideoBrowser initialized for uploads:', this.videoBrowser);
             } else {
                 console.error('SharedVideoBrowser not found on window');
             }
@@ -94,7 +93,6 @@ class UploadQueueController {
     setupEventListeners() {
         // Browse Recordings button
         document.getElementById('upload-browse-recordings-btn')?.addEventListener('click', () => {
-            console.log('Browse recordings button clicked');
             this.browseAndUpload();
         });
 
@@ -152,7 +150,6 @@ class UploadQueueController {
     }
 
     handleStateUpdate(state) {
-        console.log('Handling state update:', state);
         // Update accounts first so they're available for rendering
         if (state && state.accounts) {
             this.accounts = Array.isArray(state.accounts) ? state.accounts : [];
@@ -165,7 +162,6 @@ class UploadQueueController {
                 queued: state.uploads.queued || [],
                 completed: state.uploads.completed || []
             };
-            console.log('Updated uploads state:', this.uploads);
             this.renderUploads();
         }
     }
@@ -507,7 +503,6 @@ class UploadQueueController {
             if (result && result.success) {
                 this.queuePaused = false;
                 this.updateQueueButtons({ queuePaused: false });
-                console.log('Upload queue started');
             }
         } catch (error) {
             console.error('Failed to start queue:', error);
@@ -522,7 +517,6 @@ class UploadQueueController {
             if (result && result.success) {
                 this.queuePaused = true;
                 this.updateQueueButtons({ queuePaused: true });
-                console.log('Upload queue paused');
             }
         } catch (error) {
             console.error('Failed to pause queue:', error);
@@ -552,13 +546,10 @@ class UploadQueueController {
     }
 
     async browseAndUpload() {
-        console.log('Browse and upload clicked');
         // Use the shared video browser instead of file dialog
         if (this.videoBrowser) {
-            console.log('Showing video browser for uploads');
             try {
                 await this.videoBrowser.show();
-                console.log('Video browser shown successfully');
             } catch (error) {
                 console.error('Error showing video browser:', error);
             }
@@ -570,13 +561,11 @@ class UploadQueueController {
     handleVideoSelected(video) {
         if (!video || !video.path) return;
 
-        console.log('Video selected for upload:', video.path);
 
         // Show upload dialog with the full video object (includes path and event info)
         if (this.uploadDialog) {
             this.uploadDialog.show(video, {
                 onUploadQueued: (uploadId, accountName) => {
-                    console.log(`Video queued for upload to ${accountName}`);
                     // Refresh the upload state
                     this.loadUploadState();
                 }
@@ -588,7 +577,6 @@ class UploadQueueController {
 
     async pauseAllUploads() {
         // TODO: Implement pause all functionality
-        console.log('Pause all uploads');
     }
 
     async clearCompleted() {
@@ -621,7 +609,6 @@ class UploadQueueController {
     }
 
     async removeFromQueue(uploadId) {
-        console.log('Removing from queue:', uploadId);
         if (!this.ipc) {
             this.uploads.queued = this.uploads.queued.filter(u => u.id !== uploadId);
             this.renderUploads();
@@ -631,7 +618,6 @@ class UploadQueueController {
         try {
             // Remove from backend queue
             const result = await this.ipc.invoke('upload:remove-from-queue', { uploadId });
-            console.log('Remove from queue result:', result);
 
             // Update local state immediately
             this.uploads.queued = this.uploads.queued.filter(u => u.id !== uploadId);
@@ -642,7 +628,6 @@ class UploadQueueController {
     }
 
     async removeCompleted(uploadId) {
-        console.log('Removing completed:', uploadId);
         if (!this.ipc) {
             this.uploads.completed = this.uploads.completed.filter(u => u.id !== uploadId);
             this.renderUploads();
@@ -652,7 +637,6 @@ class UploadQueueController {
         try {
             // Remove from backend completed list
             const result = await this.ipc.invoke('upload:remove-completed', { uploadId });
-            console.log('Remove completed result:', result);
 
             // Update local state immediately
             this.uploads.completed = this.uploads.completed.filter(u => u.id !== uploadId);
@@ -664,7 +648,6 @@ class UploadQueueController {
 
     async retryUpload(uploadId) {
         // TODO: Implement retry functionality
-        console.log('Retry upload:', uploadId);
     }
 
     async copyUrl(url) {
@@ -672,7 +655,6 @@ class UploadQueueController {
 
         try {
             await navigator.clipboard.writeText(url);
-            console.log('URL copied to clipboard');
             // Could show a toast notification here
         } catch (error) {
             console.error('Failed to copy URL:', error);
@@ -755,7 +737,6 @@ class UploadQueueController {
     }
 
     handleUploadFailed(upload) {
-        console.log('Upload failed:', upload);
         // Move from active to completed (failed)
         this.uploads.active = this.uploads.active.filter(u => u.id !== upload.id);
         this.uploads.completed.unshift(upload);

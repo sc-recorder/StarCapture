@@ -58,7 +58,6 @@ function registerProtocolHandler() {
 
 // Handle OAuth callback URLs
 function handleOAuthCallback(url) {
-    console.log('[OAuth] Received callback URL:', url);
 
     try {
         const parsedUrl = new URL(url);
@@ -96,7 +95,6 @@ function handleOAuthCallback(url) {
                     });
                 }
 
-                console.log(`[OAuth] Successfully authenticated with ${service}`);
             } else {
                 const error = params.get('error');
                 if (mainWindow) {
@@ -141,7 +139,6 @@ function createSplashWindow() {
     splashWindow.once('ready-to-show', () => {
       splashWindow.center();
       splashWindow.show();
-      console.log('Splash window shown');
       resolve();
     });
   });
@@ -237,7 +234,6 @@ function createWindow() {
       // Send initial status update
       if (supervisor) {
         const initialState = supervisor.getState();
-        console.log('Sending initial status to renderer:', initialState);
         mainWindow.webContents.send('status-update', initialState);
       }
     }, 2000);
@@ -334,13 +330,11 @@ async function initializeApp() {
     try {
       await fs.access(obsPath);
       await fs.access(ffmpegPath);
-      console.log('Required dependencies found');
     } catch {
       console.log('Missing required dependencies - treating as first run');
       // Clear encoder cache since we need to re-detect after installing dependencies
       try {
         await configManager.saveEncodersCache(null);
-        console.log('Cleared encoder cache for fresh detection');
       } catch (e) {
         console.log('Could not clear encoder cache:', e);
       }
@@ -353,7 +347,6 @@ async function initializeApp() {
     try {
       const templateGenerator = new OBSTemplateGenerator();
       const result = await templateGenerator.generateFromConfig(config);
-      console.log('OBS templates ready:', result);
     } catch (error) {
       console.error('Failed to generate OBS templates:', error);
       // Continue anyway - OBS might work with existing config
@@ -518,7 +511,6 @@ async function checkPatternUpdates() {
 
         // Continue loading but patterns will be missing
       } else if (updateInfo.isMissing) {
-        console.log('Pattern file missing, downloading from remote...');
 
         if (splashWindow) {
           splashWindow.webContents.send('splash-progress', {
@@ -529,14 +521,12 @@ async function checkPatternUpdates() {
 
         const success = await updater.applyUpdate(updateInfo);
         if (success) {
-          console.log('Pattern file restored successfully');
           // Update config tracking
           if (configManager) {
             await configManager.updatePatternTracking(updateInfo.newVersion);
           }
         }
       } else {
-        console.log(`Pattern update available: ${updateInfo.currentVersion} → ${updateInfo.newVersion}`);
 
         if (splashWindow) {
           splashWindow.webContents.send('splash-progress', {
@@ -547,7 +537,6 @@ async function checkPatternUpdates() {
 
         const success = await updater.applyUpdate(updateInfo);
         if (success) {
-          console.log('Pattern update applied successfully');
           // Update config tracking
           if (configManager) {
             await configManager.updatePatternTracking(updateInfo.newVersion);
@@ -555,7 +544,6 @@ async function checkPatternUpdates() {
         }
       }
     } else {
-      console.log('Patterns are up to date');
     }
   } catch (error) {
     console.log('Pattern update check failed (non-blocking):', error.message);
@@ -690,7 +678,6 @@ app.on('before-quit', async (event) => {
     const AudioTrackManager = require('./lib/audio-track-manager');
     const manager = new AudioTrackManager();
     await manager.cleanupTempRoot();
-    console.log('Cleaned up audio temp files');
   } catch (error) {
     console.error('Failed to clean up audio temp files:', error);
   }
@@ -817,7 +804,31 @@ function getUiohookKeyCode(keyName) {
     'down': UiohookKey.Down,
     'left': UiohookKey.Left,
     'right': UiohookKey.Right,
-    'insert': UiohookKey.Insert
+    'insert': UiohookKey.Insert,
+    // Add missing special keys
+    '\\': UiohookKey.Backslash,
+    'backslash': UiohookKey.Backslash,
+    'capslock': UiohookKey.CapsLock,
+    'caps': UiohookKey.CapsLock,
+    '/': UiohookKey.Slash,
+    'slash': UiohookKey.Slash,
+    '.': UiohookKey.Period,
+    'period': UiohookKey.Period,
+    ',': UiohookKey.Comma,
+    'comma': UiohookKey.Comma,
+    ';': UiohookKey.Semicolon,
+    'semicolon': UiohookKey.Semicolon,
+    "'": UiohookKey.Quote,
+    'quote': UiohookKey.Quote,
+    '[': UiohookKey.BracketLeft,
+    ']': UiohookKey.BracketRight,
+    '-': UiohookKey.Minus,
+    'minus': UiohookKey.Minus,
+    '=': UiohookKey.Equal,
+    'equal': UiohookKey.Equal,
+    'equals': UiohookKey.Equal,
+    '`': UiohookKey.Grave,
+    'grave': UiohookKey.Grave
   };
 
   return keyMap[keyName.toLowerCase()] || null;
@@ -830,12 +841,14 @@ function checkHotkey(parsedHotkey, event) {
   // Check if the main key matches
   if (event.keycode !== parsedHotkey.key) return false;
 
-  // Check modifiers
-  const hasCtrl = event.ctrlKey || currentKeyState.has(UiohookKey.Ctrl) || currentKeyState.has(UiohookKey.CtrlRight);
-  const hasAlt = event.altKey || currentKeyState.has(UiohookKey.Alt) || currentKeyState.has(UiohookKey.AltRight);
-  const hasShift = event.shiftKey || currentKeyState.has(UiohookKey.Shift) || currentKeyState.has(UiohookKey.ShiftRight);
-  const hasMeta = event.metaKey || currentKeyState.has(UiohookKey.Meta) || currentKeyState.has(UiohookKey.MetaRight);
+  // Check modifiers - use event properties directly as they're more reliable
+  const hasCtrl = event.ctrlKey;
+  const hasAlt = event.altKey;
+  const hasShift = event.shiftKey;
+  const hasMeta = event.metaKey;
 
+
+  // Check required modifiers are pressed
   for (const mod of parsedHotkey.modifiers) {
     if (mod === 'ctrl' && !hasCtrl) return false;
     if (mod === 'alt' && !hasAlt) return false;
@@ -843,11 +856,13 @@ function checkHotkey(parsedHotkey, event) {
     if (mod === 'meta' && !hasMeta) return false;
   }
 
-  // Make sure no extra modifiers are pressed
-  if (!parsedHotkey.modifiers.includes('ctrl') && hasCtrl) return false;
-  if (!parsedHotkey.modifiers.includes('alt') && hasAlt) return false;
-  if (!parsedHotkey.modifiers.includes('shift') && hasShift) return false;
-  if (!parsedHotkey.modifiers.includes('meta') && hasMeta) return false;
+  // Only check for extra modifiers if we have no modifiers defined
+  // This allows flexibility for system-level combinations
+  if (parsedHotkey.modifiers.length === 0) {
+    // For standalone keys, we might want to allow shift for capitalization
+    // but not ctrl/alt/meta as those are typically intentional modifiers
+    if (hasCtrl || hasAlt || hasMeta) return false;
+  }
 
   return true;
 }
@@ -863,10 +878,10 @@ function startUiohook() {
     uIOhook.on('keydown', (event) => {
       currentKeyState.add(event.keycode);
 
+
       // Check registered hotkeys
       for (const [action, hotkeyData] of Object.entries(registeredHotkeys)) {
         if (checkHotkey(hotkeyData.parsed, event)) {
-          console.log(`Hotkey triggered: ${action}`);
           if (hotkeyData.callback) {
             hotkeyData.callback();
           }
@@ -880,7 +895,6 @@ function startUiohook() {
 
     uIOhook.start();
     uiohookStarted = true;
-    console.log('uIOhook started successfully');
   } catch (error) {
     console.error('Failed to start uIOhook:', error);
   }
@@ -893,7 +907,6 @@ function stopUiohook() {
     uIOhook.stop();
     uiohookStarted = false;
     currentKeyState.clear();
-    console.log('uIOhook stopped');
   } catch (error) {
     console.error('Failed to stop uIOhook:', error);
   }
@@ -914,13 +927,11 @@ function registerHotkeys(hotkeys) {
         original: hotkeys.startStop,
         parsed: parsed,
         callback: () => {
-          console.log('Start/Stop hotkey pressed');
           if (supervisor) {
             supervisor.toggleRecording();
           }
         }
       };
-      console.log('Registered start/stop hotkey:', hotkeys.startStop);
     }
   }
 
@@ -931,13 +942,11 @@ function registerHotkeys(hotkeys) {
         original: hotkeys.split,
         parsed: parsed,
         callback: () => {
-          console.log('Split recording hotkey pressed');
           if (supervisor) {
             supervisor.splitRecording();
           }
         }
       };
-      console.log('Registered split hotkey:', hotkeys.split);
     }
   }
 
@@ -948,7 +957,6 @@ function registerHotkeys(hotkeys) {
         original: hotkeys.markEvent,
         parsed: parsed,
         callback: () => {
-          console.log('Mark event hotkey pressed');
           if (supervisor) {
             // Create a manual event
             const manualEvent = {
@@ -973,7 +981,6 @@ function registerHotkeys(hotkeys) {
           }
         }
       };
-      console.log('Registered mark event hotkey:', hotkeys.markEvent);
     }
   }
 
@@ -1235,7 +1242,6 @@ ipcMain.handle('oauth:authenticate', async (event, service) => {
     // Use OAuth proxy server for authentication
     const authUrl = `${OAUTH_PROXY_URL}/auth/${service === 'google' ? 'google' : 'twitch'}`;
 
-    console.log(`[OAuth] Opening authentication URL: ${authUrl}`);
 
     // Open the OAuth URL in the default browser
     const { shell } = require('electron');
@@ -1326,7 +1332,6 @@ ipcMain.handle('detect-encoders', async (event, forceRescan = false) => {
     if (!forceRescan && configManager) {
       const cached = await configManager.loadEncodersCache();
       if (cached) {
-        console.log('Using cached encoder data');
         // Return wrapped response for settings view compatibility
         return { success: true, encoders: cached };
       }
@@ -1335,7 +1340,6 @@ ipcMain.handle('detect-encoders', async (event, forceRescan = false) => {
     // For rescan from settings, just parse the existing OBS log
     // OBS should already be running via supervisor
     if (forceRescan) {
-      console.log('Parsing OBS log for encoder information...');
       const detector = new OBSCapabilityDetector();
 
       // Just parse the log, don't start OBS
@@ -1346,11 +1350,9 @@ ipcMain.handle('detect-encoders', async (event, forceRescan = false) => {
         if (configManager) {
           await configManager.saveEncodersCache(encoders);
         }
-        console.log('Found encoders in log:', encoders);
         // Return wrapped response for settings view compatibility
         return { success: true, encoders: encoders };
       } else {
-        console.log('No encoders found in log, returning cached or default');
         // If log parsing fails, return cached encoders or defaults
         const cached = await configManager.loadEncodersCache();
         if (cached) {
@@ -1369,7 +1371,6 @@ ipcMain.handle('detect-encoders', async (event, forceRescan = false) => {
     // Keep OBS alive for audio detection next
     setupDetector = new OBSCapabilityDetector();
     const capabilities = await setupDetector.detectCapabilities(true); // keepAlive = true
-    console.log('Detected encoders:', capabilities.encoders);
 
     // Save to cache for future use
     if (configManager) {
@@ -1437,11 +1438,9 @@ ipcMain.handle('get-cached-encoders', async () => {
 
     const cachedEncoders = await configManager.loadEncodersCache();
     if (cachedEncoders) {
-      console.log('Returning cached encoders');
       return cachedEncoders;
     }
 
-    console.log('No cached encoders found');
     return null;
   } catch (error) {
     console.error('Failed to load cached encoders:', error);
@@ -1513,7 +1512,6 @@ ipcMain.handle('detect-audio-devices', async () => {
         });
       });
 
-      console.log(`Detected ${applications.length} running applications`);
     } catch (error) {
       console.error('Failed to detect running applications:', error);
       // Fall back to cached applications
@@ -1526,7 +1524,6 @@ ipcMain.handle('detect-audio-devices', async () => {
       console.log('Using setup detector for audio devices');
       try {
         const audioDevices = await setupDetector.detectAudioDevices();
-        console.log('Got audio devices from setup detector:', audioDevices);
 
         // Format response for both settings page and wizard
         return {
@@ -1683,7 +1680,6 @@ ipcMain.handle('detect-applications', async () => {
       });
     });
 
-    console.log('Detected applications:', applications.length);
     return applications;
 
   } catch (error) {
@@ -1768,8 +1764,6 @@ ipcMain.handle('init-audio-track-manager', async () => {
 
     // Get config using the global configManager instance
     const config = configManager ? configManager.get() : {};
-    console.log('[Main] ConfigManager available:', !!configManager);
-    console.log('[Main] Config loaded:', !!config);
 
     // Use LOCALAPPDATA for downloaded resources
     const localAppData = process.env.LOCALAPPDATA || process.env.APPDATA;
@@ -1777,9 +1771,7 @@ ipcMain.handle('init-audio-track-manager', async () => {
     const ffmpegPath = config.ffmpegPath || path.join(resourcesBase, 'ffmpeg', 'ffmpeg.exe');
     const ffprobePath = config.ffprobePath || path.join(resourcesBase, 'ffmpeg', 'ffprobe.exe');
 
-    console.log('[Main] Initializing AudioTrackManager with paths:', { ffmpegPath, ffprobePath });
     await audioTrackManager.initialize(ffmpegPath, ffprobePath);
-    console.log('[Main] AudioTrackManager initialized successfully');
     return { success: true };
   } catch (error) {
     console.error('[Main] Failed to initialize AudioTrackManager:', error);
@@ -1793,7 +1785,6 @@ ipcMain.handle('detect-audio-tracks', async (event, videoPath) => {
   try {
     // Force recreation if paths are wrong (contain app.asar)
     if (!audioTrackManager || (audioTrackManager.ffmpegPath && audioTrackManager.ffmpegPath.includes('app.asar'))) {
-      console.log('[Main] AudioTrackManager not initialized or has wrong paths, creating new instance...');
       audioTrackManager = null; // Clear old instance
       const AudioTrackManager = require('./lib/audio-track-manager');
       audioTrackManager = new AudioTrackManager();
@@ -1806,13 +1797,10 @@ ipcMain.handle('detect-audio-tracks', async (event, videoPath) => {
       const ffmpegPath = config.ffmpegPath || path.join(baseDir, 'resources', 'ffmpeg', 'ffmpeg.exe');
       const ffprobePath = config.ffprobePath || path.join(baseDir, 'resources', 'ffmpeg', 'ffprobe.exe');
 
-      console.log('[Main] Initializing with paths:', { ffmpegPath, ffprobePath });
       await audioTrackManager.initialize(ffmpegPath, ffprobePath);
     }
 
-    console.log(`[Main] Calling detectAudioTracks...`);
     const tracks = await audioTrackManager.detectAudioTracks(videoPath);
-    console.log(`[Main] Detected ${tracks.length} audio tracks:`, tracks);
     return { success: true, tracks };
   } catch (error) {
     console.error('Failed to detect audio tracks:', error);
@@ -1866,7 +1854,6 @@ ipcMain.handle('extract-audio-tracks', async (event, videoPath) => {
     };
 
     const extractedTracks = await audioTrackManager.extractAudioTracks(videoPath, progressCallback);
-    console.log(`Extracted ${extractedTracks.length} audio tracks`);
 
     extractLogger.log(`Successfully extracted ${extractedTracks.length} audio tracks`);
     extractedTracks.forEach(track => {
@@ -1888,7 +1875,6 @@ ipcMain.handle('cleanup-audio-tracks', async () => {
   try {
     if (audioTrackManager) {
       await audioTrackManager.cleanupExtractedTracks();
-      console.log('Cleaned up extracted audio tracks');
     }
     return { success: true };
   } catch (error) {
@@ -1914,6 +1900,61 @@ ipcMain.handle('get-ffmpeg-path', async () => {
   return { ffmpegPath, ffprobePath };
 });
 
+// Thumbnail generation handlers
+ipcMain.handle('generate-thumbnails', async (event, options) => {
+  const ThumbnailGenerator = require('./lib/thumbnail-generator');
+  const generator = new ThumbnailGenerator();
+
+  try {
+
+    await generator.initialize();
+
+    // Set up progress reporting
+    const progressOptions = {
+      ...options,
+      onProgress: (progress) => {
+        // Send progress updates to renderer
+        event.sender.send('thumbnail-progress', progress);
+      }
+    };
+
+    const result = await generator.generateFromVideo(
+      options.videoPath,
+      options.events,
+      options.outputFolder,
+      {
+        mainEventId: options.mainEventId,
+        onProgress: progressOptions.onProgress
+      }
+    );
+
+    return result;
+  } catch (error) {
+    console.error('[Main] Thumbnail generation failed:', error);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+});
+
+// Check if thumbnails exist
+ipcMain.handle('check-thumbnails', async (event, videoPath) => {
+  const ThumbnailGenerator = require('./lib/thumbnail-generator');
+  const generator = new ThumbnailGenerator();
+
+  try {
+    const result = await generator.checkThumbnails(videoPath);
+    return result;
+  } catch (error) {
+    console.error('[Main] Thumbnail check failed:', error);
+    return {
+      exists: false,
+      error: error.message
+    };
+  }
+});
+
 // Helper function to export filtered events for edited videos
 async function exportFilteredEvents(options, exportLogger) {
   const path = require('path');
@@ -1924,45 +1965,106 @@ async function exportFilteredEvents(options, exportLogger) {
     const videoPath = options.outputPath;
     const jsonPath = videoPath.substring(0, videoPath.lastIndexOf('.')) + '.json';
 
-    // Filter events within the mark in/out range
+    // Try to read the original JSON to get the base metadata structure
+    let originalMetadata = null;
+    const originalJsonPath = options.inputPath.replace(/\.[^.]+$/, '.json');
+
+    try {
+      const originalContent = await fs.readFile(originalJsonPath, 'utf8');
+      const originalJson = JSON.parse(originalContent);
+      originalMetadata = originalJson.metadata;
+    } catch (err) {
+      exportLogger.log('No original JSON found at:', originalJsonPath);
+    }
+
+    // Filter events within the mark in/out range and adjust offsets
     const markIn = options.markIn || 0;
     const markOut = options.markOut || Infinity;
+    const duration = markOut - markIn;
 
     const filteredEvents = options.events.filter(event => {
       const eventTime = event.videoOffset || 0;
       return eventTime >= markIn && eventTime <= markOut;
     }).map(event => {
-      // Adjust video offset to be relative to the new start time
-      return {
+      // Adjust video offset and timecode to be relative to the new start time
+      const newOffset = (event.videoOffset || 0) - markIn;
+      const newTimecode = formatTimecode(newOffset);
+
+      // Create a clean event object without any file paths
+      const cleanEvent = {
         ...event,
-        videoOffset: (event.videoOffset || 0) - markIn
+        videoOffset: newOffset,
+        videoTimecode: newTimecode
       };
+
+      // Remove any fields that contain file paths or weren't in the original format
+      if (cleanEvent.data) {
+        // Remove recordingPath if it exists in data
+        delete cleanEvent.data.recordingPath;
+        // Remove any other full paths that might have been added
+        delete cleanEvent.data.originalVideo;
+        delete cleanEvent.data.exportedVideo;
+      }
+
+      return cleanEvent;
     });
 
-    // Create the JSON structure
+    // Recalculate category statistics based on filtered events
+    const categories = {};
+    filteredEvents.forEach(event => {
+      const category = event.category || 'unknown';
+      const subtype = event.subtype || event.type || 'unknown';
+
+      if (!categories[category]) {
+        categories[category] = {
+          count: 0,
+          types: {}
+        };
+      }
+
+      categories[category].count++;
+      categories[category].types[subtype] = (categories[category].types[subtype] || 0) + 1;
+    });
+
+    // Create metadata structure, preserving original structure but updating values
+    const metadata = {
+      version: originalMetadata?.version || "1.0.0",
+      recorder: originalMetadata?.recorder || "SC-Recorder",
+      recordingStartTime: originalMetadata?.recordingStartTime || new Date().toISOString(),
+      recordingStartTimecode: originalMetadata?.recordingStartTimecode || Date.now(),
+      recordingDuration: duration,  // Updated to reflect edited duration
+      eventCount: filteredEvents.length,  // Updated to reflect filtered events
+      categories: categories,  // Recalculated from filtered events
+      savedAt: new Date().toISOString()  // Updated to current save time
+    };
+
+    // Create the final JSON structure matching original format
     const jsonData = {
-      version: "1.0",
-      exportDate: new Date().toISOString(),
-      originalVideo: options.inputPath,
-      exportedVideo: options.outputPath,
-      markIn: markIn,
-      markOut: markOut,
-      duration: markOut - markIn,
+      metadata: metadata,
       events: filteredEvents
     };
 
     // Write the JSON file
     await fs.writeFile(jsonPath, JSON.stringify(jsonData, null, 2));
 
-    console.log(`Exported ${filteredEvents.length} events to: ${jsonPath}`);
     exportLogger.log(`Exported ${filteredEvents.length} events to: ${jsonPath}`);
-    exportLogger.log('Events JSON saved successfully');
+    exportLogger.log('Events JSON saved successfully with updated metadata');
 
   } catch (error) {
     console.error('Failed to export events JSON:', error);
     exportLogger.error('Failed to export events JSON:', error.message);
     // Don't throw - we don't want to fail the video export if JSON export fails
   }
+}
+
+// Helper function to format seconds into timecode
+function formatTimecode(seconds) {
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const secs = Math.floor(seconds % 60);
+  const ms = Math.floor((seconds % 1) * 1000);
+
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}.${String(ms).padStart(3, '0')}`;
 }
 
 // Video export IPC handlers using fluent-ffmpeg
@@ -1978,7 +2080,6 @@ ipcMain.handle('export-video-fluent', async (event, options) => {
 
   try {
     console.log('Starting video export with fluent-ffmpeg...');
-    console.log('Export options:', JSON.stringify(options, null, 2));
 
     // Log export session start
     exportLogger.log('===== VIDEO EXPORT SESSION STARTED =====');
@@ -2010,8 +2111,6 @@ ipcMain.handle('export-video-fluent', async (event, options) => {
     const ffmpegPath = config.ffmpegPath || path.join(resourcesBase, 'ffmpeg', 'ffmpeg.exe');
     const ffprobePath = config.ffprobePath || path.join(resourcesBase, 'ffmpeg', 'ffprobe.exe');
 
-    console.log('Using FFmpeg:', ffmpegPath);
-    console.log('Using FFprobe:', ffprobePath);
 
     // Set FFmpeg and FFprobe paths
     ffmpeg.setFfmpegPath(ffmpegPath);
@@ -2019,7 +2118,6 @@ ipcMain.handle('export-video-fluent', async (event, options) => {
 
     // Multi-step approach for multi-track audio with segments
     if (options.isMultiTrackMode && options.audioSegments && options.audioSegments.length > 0) {
-      console.log('Using multi-step approach for multi-track audio export');
       exportLogger.log('Using multi-step approach for multi-track audio export');
 
       // Step 1: Create trimmed temporary file with all audio tracks
@@ -2027,7 +2125,6 @@ ipcMain.handle('export-video-fluent', async (event, options) => {
       const tempFile = path.join(tempDir, `sc_recorder_temp_${Date.now()}.mkv`);
       let tempFileCreated = false;
 
-      console.log('Step 1: Creating trimmed temp file with all tracks:', tempFile);
       exportLogger.log('Step 1: Creating trimmed temp file with all tracks:', tempFile);
 
       try {
@@ -2043,7 +2140,6 @@ ipcMain.handle('export-video-fluent', async (event, options) => {
           // Add extracted audio tracks with the same seek
           if (options.extractedTracks && options.extractedTracks.length > 0) {
             options.extractedTracks.forEach(track => {
-              console.log(`Adding audio track input: ${track.path} (track ${track.trackIndex})`);
               trimCommand.input(track.path);
               if (options.markIn !== null && options.markIn !== undefined) {
                 trimCommand.seekInput(options.markIn);
@@ -2084,12 +2180,10 @@ ipcMain.handle('export-video-fluent', async (event, options) => {
           trimCommand.output(tempFile);
 
           trimCommand.on('start', (commandLine) => {
-            console.log('Step 1 FFmpeg command:', commandLine);
             exportLogger.log('Step 1 FFmpeg command:', commandLine);
           });
 
           trimCommand.on('progress', (progress) => {
-            console.log(`Step 1 Progress: ${progress.percent ? progress.percent.toFixed(1) : '0'}%`);
             event.sender.send('export-progress', {
               percent: progress.percent ? progress.percent / 2 : 0,  // First 50% of total progress
               currentTime: progress.timemark,
@@ -2106,7 +2200,6 @@ ipcMain.handle('export-video-fluent', async (event, options) => {
           });
 
           trimCommand.on('end', () => {
-            console.log('Step 1 completed: Trimmed file created');
             exportLogger.log('Step 1 completed: Trimmed file created successfully');
             tempFileCreated = true;
             resolve();
@@ -2116,7 +2209,6 @@ ipcMain.handle('export-video-fluent', async (event, options) => {
         });
 
         // Step 2: Apply audio segments and mix
-        console.log('Step 2: Applying audio segments and mixing');
         exportLogger.log('Step 2: Applying audio segments and mixing');
 
         await new Promise((resolve, reject) => {
@@ -2126,7 +2218,6 @@ ipcMain.handle('export-video-fluent', async (event, options) => {
           mixCommand.input(tempFile);
 
           // Build the audio mixing filter
-          console.log('Building audio segment filters...');
           const filters = [];
           const inputs = [];
 
@@ -2140,14 +2231,12 @@ ipcMain.handle('export-video-fluent', async (event, options) => {
             segmentsByTrack[trackId].push(segment);
           });
 
-          console.log('Segments grouped by track:', segmentsByTrack);
           exportLogger.log('Segments grouped by track:', JSON.stringify(segmentsByTrack, null, 2));
 
           // Process each track's segments
           // Now all times are relative to 0 since we have a trimmed file
           Object.entries(segmentsByTrack).forEach(([trackId, segments]) => {
             const trackNum = parseInt(trackId.split('-')[1]);
-            console.log(`Processing track ${trackNum} with ${segments.length} segments`);
 
             // In the temp file, tracks are in order: video, then audio tracks
             // Audio track indices in temp file:
@@ -2173,7 +2262,6 @@ ipcMain.handle('export-video-fluent', async (event, options) => {
             }));
 
             if (validSegments.length === 0) {
-              console.log(`No valid segments for track ${trackNum}`);
               return;
             }
 
@@ -2201,7 +2289,6 @@ ipcMain.handle('export-video-fluent', async (event, options) => {
 
               segmentFilter += `[${trackFilterName}]`;
 
-              console.log(`Filter for track ${trackNum}: ${segmentFilter}`);
               filters.push(segmentFilter);
               inputs.push(`[${trackFilterName}]`);
 
@@ -2247,7 +2334,6 @@ ipcMain.handle('export-video-fluent', async (event, options) => {
             filters.push(finalMixFilter);
 
             const complexFilter = filters.join(';');
-            console.log('Complex filter for mixing:', complexFilter);
             exportLogger.log('Complex filter for mixing:', complexFilter);
 
             mixCommand.complexFilter(complexFilter);
@@ -2287,12 +2373,10 @@ ipcMain.handle('export-video-fluent', async (event, options) => {
           mixCommand.output(options.outputPath);
 
           mixCommand.on('start', (commandLine) => {
-            console.log('Step 2 FFmpeg command:', commandLine);
             exportLogger.log('Step 2 FFmpeg command:', commandLine);
           });
 
           mixCommand.on('progress', (progress) => {
-            console.log(`Step 2 Progress: ${progress.percent ? progress.percent.toFixed(1) : '0'}%`);
             event.sender.send('export-progress', {
               percent: 50 + (progress.percent ? progress.percent / 2 : 0),  // Second 50% of total progress
               currentTime: progress.timemark,
@@ -2309,7 +2393,6 @@ ipcMain.handle('export-video-fluent', async (event, options) => {
           });
 
           mixCommand.on('end', async () => {
-            console.log('Step 2 completed: Export finished');
             exportLogger.log('Step 2 completed: Export finished successfully');
             exportLogger.log('Output file:', options.outputPath);
 
@@ -2327,7 +2410,6 @@ ipcMain.handle('export-video-fluent', async (event, options) => {
         // Clean up temp file
         try {
           fs.unlinkSync(tempFile);
-          console.log('Temp file cleaned up');
         } catch (err) {
           console.warn('Failed to clean up temp file:', err);
         }
@@ -2342,8 +2424,7 @@ ipcMain.handle('export-video-fluent', async (event, options) => {
         if (tempFileCreated) {
           try {
             fs.unlinkSync(tempFile);
-            console.log('Temp file cleaned up after error');
-            exportLogger.log('Temp file cleaned up after error');
+              exportLogger.log('Temp file cleaned up after error');
           } catch (e) {
             console.warn('Failed to clean up temp file:', e);
             exportLogger.warn('Failed to clean up temp file:', e.message);
@@ -2354,7 +2435,6 @@ ipcMain.handle('export-video-fluent', async (event, options) => {
 
     } else {
       // Original single-pass approach for non-multi-track or no segments
-      console.log('Using single-pass export (no multi-track segments)');
       exportLogger.log('Using single-pass export (no multi-track segments)');
 
       return new Promise((resolve, reject) => {
@@ -2374,14 +2454,12 @@ ipcMain.handle('export-video-fluent', async (event, options) => {
         // For non-multi-track mode, use simple mapping
         if (options.hasMultipleTracks && !options.isMultiTrackMode) {
           // Multi-track file but not in multi-track mode - use only first audio track
-          console.log('Using only pre-mixed audio track (track 1)');
           command.outputOptions([
             '-map', '0:v',
             '-map', '0:a:0'
           ]);
         } else {
           // Simple copy - map all streams
-          console.log('Simple copy - mapping all streams');
           command.outputOptions([
             '-map', '0:v',
             '-map', '0:a'
@@ -2413,12 +2491,10 @@ ipcMain.handle('export-video-fluent', async (event, options) => {
 
         // Progress tracking
         command.on('start', (commandLine) => {
-          console.log('Spawned FFmpeg with command:', commandLine);
           exportLogger.log('Single-pass FFmpeg command:', commandLine);
         });
 
         command.on('progress', (progress) => {
-          console.log(`Processing: ${progress.percent ? progress.percent.toFixed(1) : '0'}% done`);
           event.sender.send('export-progress', {
             percent: progress.percent,
             currentTime: progress.timemark,
@@ -2435,7 +2511,6 @@ ipcMain.handle('export-video-fluent', async (event, options) => {
         });
 
         command.on('end', async () => {
-          console.log('Export completed successfully');
           exportLogger.log('Single-pass export completed successfully');
           exportLogger.log('Output file:', options.outputPath);
 
@@ -2514,7 +2589,6 @@ ipcMain.handle('move-recording', async (event, recordingPath) => {
     // Move video file
     const destVideoPath = path.join(savedFolder, filename);
     await fs.rename(recordingPath, destVideoPath);
-    console.log(`Moved video: ${recordingPath} -> ${destVideoPath}`);
 
     // Also move JSON file if it exists
     const jsonSourcePath = path.join(sourceFolder, `${baseName}.json`);
@@ -2522,9 +2596,7 @@ ipcMain.handle('move-recording', async (event, recordingPath) => {
       await fs.access(jsonSourcePath);
       const jsonDestPath = path.join(savedFolder, `${baseName}.json`);
       await fs.rename(jsonSourcePath, jsonDestPath);
-      console.log(`Moved JSON: ${jsonSourcePath} -> ${jsonDestPath}`);
     } catch (error) {
-      console.log('No JSON file to move or already moved');
     }
 
     return { success: true, newPath: destVideoPath };
@@ -2537,7 +2609,6 @@ ipcMain.handle('move-recording', async (event, recordingPath) => {
 ipcMain.handle('save-configuration', async (event, configuration) => {
   try {
     console.log('Saving configuration from wizard...');
-    console.log('Configuration received:', JSON.stringify(configuration, null, 2));
 
     // Convert wizard config to our config format
     const config = configManager.getCapabilitiesTemplate();
@@ -2584,7 +2655,6 @@ ipcMain.handle('save-configuration', async (event, configuration) => {
         const folderPath = path.join(configuration.recordingFolder, subfolder);
         try {
           await fs.mkdir(folderPath, { recursive: true });
-          console.log(`Created folder: ${folderPath}`);
         } catch (error) {
           console.error(`Failed to create folder ${folderPath}:`, error);
         }
@@ -2659,11 +2729,9 @@ ipcMain.handle('save-configuration', async (event, configuration) => {
     }
 
     // Log final config before saving
-    console.log('Final config to save:', JSON.stringify(config, null, 2));
 
     // Save configuration
     const saved = await configManager.save(config);
-    console.log('Configuration save result:', saved);
 
     if (saved) {
       // Save encoders to separate cache file for quick access
@@ -2674,7 +2742,6 @@ ipcMain.handle('save-configuration', async (event, configuration) => {
         console.log('Generating OBS templates...');
         const templateGenerator = new OBSTemplateGenerator();
         await templateGenerator.generateFromConfig(config);
-        console.log('OBS templates generated successfully');
       } catch (templateError) {
         console.error('Failed to generate OBS templates:', templateError);
         // Don't fail the whole save if templates fail
@@ -2791,17 +2858,13 @@ ipcMain.on('download-dependencies', async (event) => {
     try {
       await fs.access(obsExePath);
       needOBS = false;
-      console.log('OBS already exists, skipping download');
     } catch (e) {
-      console.log('OBS not found, will download');
     }
 
     try {
       await fs.access(ffmpegExePath);
       needFFmpeg = false;
-      console.log('FFmpeg already exists, skipping download');
     } catch (e) {
-      console.log('FFmpeg not found, will download');
     }
 
     if (!needOBS && !needFFmpeg) {
@@ -2818,8 +2881,6 @@ ipcMain.on('download-dependencies', async (event) => {
       const configPath = app.getPath('userData');
       await detector.saveCapabilities(configPath);
 
-      console.log('All dependencies already installed');
-      console.log('FFmpeg capabilities:', capabilities);
 
       event.sender.send('dependencies-download-progress', {
         type: 'complete',
@@ -2837,7 +2898,6 @@ ipcMain.on('download-dependencies', async (event) => {
 
     // Download and install OBS if needed
     if (needOBS) {
-      console.log('Downloading OBS from:', OBS_DOWNLOAD_URL);
       event.sender.send('dependencies-download-progress', {
         type: 'status',
         message: 'Downloading OBS Studio...',
@@ -2856,7 +2916,6 @@ ipcMain.on('download-dependencies', async (event) => {
 
       currentStep++;
 
-      console.log('Extracting OBS...');
       event.sender.send('dependencies-download-progress', {
         type: 'extracting',
         component: 'obs',
@@ -2873,7 +2932,6 @@ ipcMain.on('download-dependencies', async (event) => {
 
     // Download and install FFmpeg if needed
     if (needFFmpeg) {
-      console.log('Downloading FFmpeg from:', FFMPEG_DOWNLOAD_URL);
       event.sender.send('dependencies-download-progress', {
         type: 'status',
         message: 'Downloading FFmpeg...',
@@ -2892,7 +2950,6 @@ ipcMain.on('download-dependencies', async (event) => {
 
       currentStep++;
 
-      console.log('Extracting FFmpeg...');
       event.sender.send('dependencies-download-progress', {
         type: 'extracting',
         component: 'ffmpeg',
@@ -2938,7 +2995,6 @@ ipcMain.on('download-dependencies', async (event) => {
     const configPath = app.getPath('userData');
     await detector.saveCapabilities(configPath);
 
-    console.log('All dependencies installed successfully');
     console.log('FFmpeg capabilities:', capabilities);
 
     event.sender.send('dependencies-download-progress', {
@@ -2975,7 +3031,6 @@ ipcMain.on('download-obs', async (event) => {
     const obsExePath = path.join(obsDir, 'bin', '64bit', 'obs64.exe');
     try {
       await fs.access(obsExePath, fs.constants.F_OK);
-      console.log('OBS already exists at:', obsExePath);
       event.reply('obs-download-progress', {
         type: 'complete',
         path: obsExePath
@@ -2985,8 +3040,6 @@ ipcMain.on('download-obs', async (event) => {
       // OBS doesn't exist, continue with download
     }
 
-    console.log('Downloading OBS from:', OBS_DOWNLOAD_URL);
-    console.log('To:', zipPath);
 
     // Download OBS
     await downloadFile(OBS_DOWNLOAD_URL, zipPath, (progress) => {
@@ -2998,13 +3051,11 @@ ipcMain.on('download-obs', async (event) => {
       });
     });
 
-    console.log('Download complete, extracting to:', obsDir);
 
     // Extract
     event.reply('obs-download-progress', { type: 'extracting' });
     await extract(zipPath, { dir: obsDir });
 
-    console.log('Extraction complete');
 
     // Clean up zip file
     await fs.unlink(zipPath).catch(() => { });
@@ -3012,7 +3063,6 @@ ipcMain.on('download-obs', async (event) => {
     // Verify extraction
     try {
       await fs.access(obsExePath, fs.constants.F_OK);
-      console.log('OBS successfully installed at:', obsExePath);
 
       // Success
       event.reply('obs-download-progress', {
@@ -3066,7 +3116,6 @@ ipcMain.handle('update-config', async (event, settings) => {
       console.log('Settings changed, regenerating OBS templates...');
 
       // Step 1: Stop OBS via supervisor
-      console.log('Stopping OBS for settings update...');
       await supervisor.stopOBS();
 
       // Wait a bit for OBS to fully shut down
@@ -3080,14 +3129,12 @@ ipcMain.handle('update-config', async (event, settings) => {
       await templateGenerator.generateFromConfig(configManager.config);
 
       // Step 3: Restart OBS via supervisor
-      console.log('Restarting OBS with new configuration...');
       await supervisor.startOBS();
 
       // Wait for WebSocket to reconnect and force state update
       setTimeout(() => {
         if (supervisor && mainWindow && !mainWindow.isDestroyed()) {
           const currentState = supervisor.getState();
-          console.log('Forcing state update after settings save:', currentState);
           mainWindow.webContents.send('status-update', currentState);
         }
       }, 4000); // Give WebSocket time to reconnect
@@ -3146,7 +3193,6 @@ ipcMain.handle('regenerate-templates', async (event, config) => {
 
     // Step 1: Stop OBS via supervisor
     if (supervisor) {
-      console.log('Stopping OBS for template regeneration...');
       await supervisor.stopOBS();
 
       // Wait a bit for OBS to fully shut down
@@ -3164,7 +3210,6 @@ ipcMain.handle('regenerate-templates', async (event, config) => {
     const configPath = path.join(obsPath, 'config', 'obs-studio');
 
     if (useCustomProfile || useCustomScene) {
-      console.log('Using custom OBS configuration files...');
 
       // Copy custom files if enabled
       if (useCustomProfile && settings.settings.customOBS.customProfileFilename) {
@@ -3172,7 +3217,6 @@ ipcMain.handle('regenerate-templates', async (event, config) => {
         const targetProfilePath = path.join(configPath, 'profiles', 'SC Recorder', 'basic.ini');
         if (fs.existsSync(customProfilePath)) {
           fs.copyFileSync(customProfilePath, targetProfilePath);
-          console.log('Installed custom OBS profile');
         }
       }
 
@@ -3181,7 +3225,6 @@ ipcMain.handle('regenerate-templates', async (event, config) => {
         const targetScenePath = path.join(configPath, 'basic', 'scenes', 'SC_Recorder.json');
         if (fs.existsSync(customScenePath)) {
           fs.copyFileSync(customScenePath, targetScenePath);
-          console.log('Installed custom OBS scene collection');
         }
       }
 
@@ -3205,14 +3248,12 @@ ipcMain.handle('regenerate-templates', async (event, config) => {
 
     // Step 3: Restart OBS via supervisor
     if (supervisor) {
-      console.log('Restarting OBS with new configuration...');
       await supervisor.startOBS();
 
       // Wait for WebSocket to reconnect and force state update
       setTimeout(() => {
         if (supervisor && mainWindow && !mainWindow.isDestroyed()) {
           const currentState = supervisor.getState();
-          console.log('Forcing state update after template regeneration:', currentState);
           mainWindow.webContents.send('status-update', currentState);
         }
       }, 4000);
@@ -3231,7 +3272,6 @@ ipcMain.handle('regenerate-templates', async (event, config) => {
         setTimeout(() => {
           if (supervisor && mainWindow && !mainWindow.isDestroyed()) {
             const currentState = supervisor.getState();
-            console.log('Forcing state update after error recovery:', currentState);
             mainWindow.webContents.send('status-update', currentState);
           }
         }, 4000);
@@ -3515,7 +3555,6 @@ ipcMain.handle('get-event-patterns', async () => {
     const content = await fs.readFile(patternsPath, 'utf8');
     const patterns = JSON.parse(content);
 
-    console.log('Loaded event patterns for filter editor');
     return patterns;
   } catch (error) {
     console.error('Error loading event patterns:', error);
@@ -3539,7 +3578,6 @@ ipcMain.handle('load-filter-templates', async () => {
     const content = await fs.readFile(templatesPath, 'utf8');
     const templates = JSON.parse(content);
 
-    console.log('Loaded filter templates from:', templatesPath);
     return templates;
   } catch (error) {
     console.error('Error loading filter templates:', error);
@@ -3558,7 +3596,6 @@ ipcMain.handle('save-filter-templates', async (event, templates) => {
 
     await fs.writeFile(templatesPath, JSON.stringify(templates, null, 2));
 
-    console.log('Saved filter templates to:', templatesPath);
     return { success: true };
   } catch (error) {
     console.error('Error saving filter templates:', error);
@@ -3570,26 +3607,21 @@ ipcMain.handle('save-filter-templates', async (event, templates) => {
 ipcMain.handle('get-recordings-list', async (event, folder = 'recordings') => {
   try {
     const config = configManager.get();
-    console.log('[get-recordings-list] Config loaded:', config ? 'yes' : 'no');
     const basePath = config?.settings?.recording?.outputPath || path.join(app.getPath('videos'), 'SC-Recorder');
 
     // Append the requested folder (recordings, saved, or edited)
     const recordingPath = path.join(basePath, folder);
 
-    console.log(`[get-recordings-list] Loading from ${folder} folder:`, recordingPath);
 
     // Ensure directory exists
     try {
       await fs.access(recordingPath);
-      console.log('[get-recordings-list] Directory exists');
     } catch (error) {
-      console.log('[get-recordings-list] Directory does not exist:', recordingPath, error.message);
       return [];
     }
 
     // Get all files in the directory
     const files = await fs.readdir(recordingPath);
-    console.log('[get-recordings-list] Files found:', files.length);
 
     // Filter for video files
     const videoExtensions = ['.mp4', '.mkv', '.avi', '.webm', '.mov'];
@@ -3597,7 +3629,6 @@ ipcMain.handle('get-recordings-list', async (event, folder = 'recordings') => {
       const ext = path.extname(file).toLowerCase();
       return videoExtensions.includes(ext);
     });
-    console.log('[get-recordings-list] Video files found:', videoFiles);
 
     // Build list with metadata
     const recordings = [];
