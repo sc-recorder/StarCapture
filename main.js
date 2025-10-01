@@ -40,9 +40,102 @@ let setupWindow;
 let supervisor;
 let configManager;
 let isFirstRun = false;
+let supervisorListenersAttached = false;
+let recordingStatsPromise = null; // Prevent concurrent stats calls
 
 // OAuth proxy configuration
 const OAUTH_PROXY_URL = 'https://auth.sc-recorder.video';
+
+// Helper function to attach supervisor event listeners (only once)
+function attachSupervisorListeners() {
+  if (supervisorListenersAttached || !supervisor) {
+    return;
+  }
+
+  console.log('Attaching supervisor event listeners...');
+
+  supervisor.on('state-changed', (state) => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('status-update', state);
+    }
+  });
+
+  supervisor.on('event', (event) => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('event', event);
+    }
+  });
+
+  supervisor.on('recording-status', (data) => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('recording-status', data);
+    }
+  });
+
+  supervisor.on('events-saved', (result) => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('events-saved', result);
+    }
+  });
+
+  supervisor.on('recording-stats', (data) => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('recording-stats', data);
+    }
+  });
+
+  supervisor.on('audio-devices', (data) => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('audio-devices', data);
+    }
+  });
+
+  supervisor.on('applications', (data) => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('applications', data);
+    }
+  });
+
+  supervisor.on('upload-state-changed', (state) => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('upload-state-changed', state);
+    }
+  });
+
+  supervisor.on('upload-started', (upload) => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('upload-started', upload);
+    }
+  });
+
+  supervisor.on('upload-progress', (progress) => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('upload-progress', progress);
+    }
+  });
+
+  supervisor.on('upload-completed', (upload) => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('upload-completed', upload);
+    }
+  });
+
+  supervisor.on('upload-failed', (upload) => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('upload-failed', upload);
+    }
+  });
+
+  supervisor.on('error', (data) => {
+    console.error('Supervisor error:', data);
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('supervisor-error', data);
+    }
+  });
+
+  supervisorListenersAttached = true;
+  console.log('Supervisor event listeners attached');
+}
 
 // Register custom protocol for OAuth callbacks
 function registerProtocolHandler() {
@@ -359,94 +452,8 @@ async function initializeApp() {
     console.log('Starting supervisor with OBS...');
     supervisor = new SupervisorModule();
 
-    // Listen for state changes
-    supervisor.on('state-changed', (state) => {
-      // Forward state to renderer
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send('status-update', state);
-      }
-    });
-
-    // Listen for events
-    supervisor.on('event', (event) => {
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send('event', event);
-      }
-    });
-
-    // Listen for recording status changes
-    supervisor.on('recording-status', (data) => {
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send('recording-status', data);
-      }
-    });
-
-    // Listen for events saved notification
-    supervisor.on('events-saved', (result) => {
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send('events-saved', result);
-      }
-    });
-
-    // Listen for recording stats
-    supervisor.on('recording-stats', (data) => {
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send('recording-stats', data);
-      }
-    });
-
-    // Listen for audio devices
-    supervisor.on('audio-devices', (data) => {
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send('audio-devices', data);
-      }
-    });
-
-    // Listen for applications
-    supervisor.on('applications', (data) => {
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send('applications', data);
-      }
-    });
-
-    // Upload events
-    supervisor.on('upload-state-changed', (state) => {
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send('upload-state-changed', state);
-      }
-    });
-
-    supervisor.on('upload-started', (upload) => {
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send('upload-started', upload);
-      }
-    });
-
-    supervisor.on('upload-progress', (progress) => {
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send('upload-progress', progress);
-      }
-    });
-
-    supervisor.on('upload-completed', (upload) => {
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send('upload-completed', upload);
-      }
-    });
-
-    supervisor.on('upload-failed', (upload) => {
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send('upload-failed', upload);
-      }
-    });
-
-    // Listen for errors
-    supervisor.on('error', (data) => {
-      console.error('Supervisor error:', data);
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send('supervisor-error', data);
-      }
-    });
+    // Attach event listeners (only once)
+    attachSupervisorListeners();
 
     // Initialize supervisor with config that includes auto-start settings
     const supervisorConfig = {
@@ -1297,25 +1304,45 @@ ipcMain.handle('oauth:check-config', async () => {
 });
 
 ipcMain.handle('get-recording-stats', async () => {
-  if (supervisor) {
-    return new Promise((resolve) => {
-      // Set up one-time listener for the response
-      const handler = (data) => {
-        supervisor.removeListener('recording-stats', handler);
-        resolve(data);
-      };
-
-      supervisor.on('recording-stats', handler);
-      supervisor.getRecordingStats();
-
-      // Timeout after 2 seconds
-      setTimeout(() => {
-        supervisor.removeListener('recording-stats', handler);
-        resolve(null);
-      }, 2000);
-    });
+  if (!supervisor) {
+    return null;
   }
-  return null;
+
+  // If there's already a pending request, return that promise instead of creating a new one
+  if (recordingStatsPromise) {
+    return recordingStatsPromise;
+  }
+
+  recordingStatsPromise = new Promise((resolve) => {
+    let resolved = false;
+    let timeoutHandle;
+
+    // Set up one-time listener for the response
+    const handler = (data) => {
+      if (!resolved) {
+        resolved = true;
+        clearTimeout(timeoutHandle);
+        supervisor.removeListener('recording-stats', handler);
+        recordingStatsPromise = null; // Clear the lock
+        resolve(data);
+      }
+    };
+
+    supervisor.on('recording-stats', handler);
+    supervisor.getRecordingStats();
+
+    // Timeout after 2 seconds
+    timeoutHandle = setTimeout(() => {
+      if (!resolved) {
+        resolved = true;
+        supervisor.removeListener('recording-stats', handler);
+        recordingStatsPromise = null; // Clear the lock
+        resolve(null);
+      }
+    }, 2000);
+  });
+
+  return recordingStatsPromise;
 });
 
 // Keep detector instance alive during setup wizard
@@ -1570,19 +1597,26 @@ ipcMain.handle('detect-audio-devices', async () => {
 
     // Request audio devices through supervisor
     return new Promise((resolve) => {
+      let resolved = false;
+      let timeoutHandle;
+
       // Set up one-time listener for response
       const responseHandler = (audioData) => {
-        supervisor.removeListener('audio-devices', responseHandler);
-        // Format response for both settings page and wizard
-        resolve({
-          success: true,
-          applications: applications,
-          inputDevices: audioData.inputs || [],
-          outputDevices: audioData.outputs || [],
-          // Also include old format for wizard compatibility
-          inputs: audioData.inputs || [],
-          outputs: audioData.outputs || []
-        });
+        if (!resolved) {
+          resolved = true;
+          clearTimeout(timeoutHandle);
+          supervisor.removeListener('audio-devices', responseHandler);
+          // Format response for both settings page and wizard
+          resolve({
+            success: true,
+            applications: applications,
+            inputDevices: audioData.inputs || [],
+            outputDevices: audioData.outputs || [],
+            // Also include old format for wizard compatibility
+            inputs: audioData.inputs || [],
+            outputs: audioData.outputs || []
+          });
+        }
       };
 
       supervisor.on('audio-devices', responseHandler);
@@ -1591,20 +1625,23 @@ ipcMain.handle('detect-audio-devices', async () => {
       supervisor.getAudioDevices();
 
       // Timeout after 5 seconds
-      setTimeout(() => {
-        supervisor.removeListener('audio-devices', responseHandler);
-        console.warn('Audio device detection timed out');
-        const defaultInputs = [{ id: 'default', name: 'Default Microphone', isDefault: true }];
-        const defaultOutputs = [{ id: 'default', name: 'Default Speakers', isDefault: true }];
-        resolve({
-          success: true,
-          applications: applications,
-          inputDevices: defaultInputs,
-          outputDevices: defaultOutputs,
-          // Also include old format for wizard compatibility
-          inputs: defaultInputs,
-          outputs: defaultOutputs
-        });
+      timeoutHandle = setTimeout(() => {
+        if (!resolved) {
+          resolved = true;
+          supervisor.removeListener('audio-devices', responseHandler);
+          console.warn('Audio device detection timed out');
+          const defaultInputs = [{ id: 'default', name: 'Default Microphone', isDefault: true }];
+          const defaultOutputs = [{ id: 'default', name: 'Default Speakers', isDefault: true }];
+          resolve({
+            success: true,
+            applications: applications,
+            inputDevices: defaultInputs,
+            outputDevices: defaultOutputs,
+            // Also include old format for wizard compatibility
+            inputs: defaultInputs,
+            outputs: defaultOutputs
+          });
+        }
       }, 5000);
     });
   } catch (error) {
@@ -1950,6 +1987,33 @@ ipcMain.handle('check-thumbnails', async (event, videoPath) => {
     console.error('[Main] Thumbnail check failed:', error);
     return {
       exists: false,
+      error: error.message
+    };
+  }
+});
+
+// Validate SC Player required files for direct upload
+ipcMain.handle('validate-sc-player-files', async (event, options) => {
+  try {
+    const SCPlayerProvider = require('./lib/providers/sc-player-provider');
+    const provider = new SCPlayerProvider();
+
+    console.log('[Main] Validating SC Player files for:', options.filePath);
+
+    const validation = provider.validateRequiredFiles(options.filePath);
+
+    if (validation.valid) {
+      // Add additional info for UI display
+      validation.eventThumbnailCount = validation.eventThumbnails.length;
+    }
+
+    console.log('[Main] SC Player validation result:', validation);
+    return validation;
+  } catch (error) {
+    console.error('Failed to validate SC Player files:', error);
+    return {
+      success: false,
+      valid: false,
       error: error.message
     };
   }
@@ -2592,14 +2656,17 @@ ipcMain.handle('move-recording', async (event, recordingPath) => {
 
     // Also move JSON file if it exists
     const jsonSourcePath = path.join(sourceFolder, `${baseName}.json`);
+    let newEventsPath = null;
     try {
       await fs.access(jsonSourcePath);
       const jsonDestPath = path.join(savedFolder, `${baseName}.json`);
       await fs.rename(jsonSourcePath, jsonDestPath);
+      newEventsPath = jsonDestPath;
     } catch (error) {
+      // JSON file doesn't exist or couldn't be moved
     }
 
-    return { success: true, newPath: destVideoPath };
+    return { success: true, newPath: destVideoPath, newEventsPath };
   } catch (error) {
     console.error('Failed to move recording:', error);
     return { success: false, error: error.message };
@@ -2775,43 +2842,8 @@ ipcMain.on('setup-complete', async () => {
   // Initialize supervisor with new configuration
   supervisor = new SupervisorModule();
 
-  // Set up supervisor event handlers
-  supervisor.on('state-changed', (state) => {
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('status-update', state);
-    }
-  });
-
-  supervisor.on('event', (event) => {
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('event', event);
-    }
-  });
-
-  supervisor.on('events-saved', (result) => {
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('events-saved', result);
-    }
-  });
-
-  supervisor.on('error', (data) => {
-    console.error('Supervisor error:', data);
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('supervisor-error', data);
-    }
-  });
-
-  supervisor.on('recording-status', (data) => {
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('recording-status', data);
-    }
-  });
-
-  supervisor.on('recording-stats', (data) => {
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('recording-stats', data);
-    }
-  });
+  // Attach event listeners (only once, even after setup)
+  attachSupervisorListeners();
 
   // Initialize supervisor with config that includes auto-start settings
   const supervisorConfig = {
@@ -3098,6 +3130,25 @@ ipcMain.handle('update-config', async (event, settings) => {
     // Update and save settings
     configManager.updateSettings(settings);
     await configManager.save(configManager.config);
+
+    // If recording output path changed, create the subfolder structure
+    if (settings.recording && settings.recording.outputPath) {
+      const fs = require('fs').promises;
+      const path = require('path');
+      const subfolders = ['recordings', 'saved', 'edited'];
+
+      console.log('Recording output path changed, creating folder structure...');
+
+      for (const subfolder of subfolders) {
+        const folderPath = path.join(settings.recording.outputPath, subfolder);
+        try {
+          await fs.mkdir(folderPath, { recursive: true });
+          console.log(`Created folder: ${folderPath}`);
+        } catch (error) {
+          console.error(`Failed to create folder ${folderPath}:`, error);
+        }
+      }
+    }
 
     // Register hotkeys if they changed
     if (settings.hotkeys) {

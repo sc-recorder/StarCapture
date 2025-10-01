@@ -293,6 +293,8 @@ class UploadQueueController {
                 uploadUrl = upload.result.url || `https://youtube.com/watch?v=${upload.result.videoId}`;
             } else if (account?.type === 's3') {
                 uploadUrl = upload.result.location || upload.result.key;
+            } else if (account?.type === 'sc-player') {
+                uploadUrl = upload.result.viewUrl || upload.result.publicUrl || upload.result.shareUrl;
             } else {
                 uploadUrl = upload.result.url || upload.result.location || upload.result.key || 'Unknown';
             }
@@ -302,7 +304,7 @@ class UploadQueueController {
                     <div class="upload-url">
                         <code>${uploadUrl}</code>
                         <button class="btn btn-sm" onclick="window.uploadQueueController.copyUrl('${uploadUrl}')">Copy URL</button>
-                        ${(account?.type === 's3' && uploadUrl?.startsWith('http')) || account?.type === 'youtube' ?
+                        ${(account?.type === 's3' && uploadUrl?.startsWith('http')) || account?.type === 'youtube' || account?.type === 'sc-player' ?
                             `<button class="btn btn-sm" onclick="window.uploadQueueController.openUrl('${uploadUrl}')">Open</button>` : ''}
                     </div>
                 </div>`;
@@ -753,21 +755,37 @@ class UploadQueueController {
     }
 
     calculateSpeed(upload) {
-        // TODO: Calculate actual upload speed
-        return '2.3 MB/s';
+        if (!upload.startedAt || !upload.bytesUploaded || upload.bytesUploaded === 0) {
+            return '0 B/s';
+        }
+
+        const elapsedSeconds = (Date.now() - upload.startedAt) / 1000;
+        if (elapsedSeconds < 1) return 'calculating...';
+
+        const bytesPerSecond = upload.bytesUploaded / elapsedSeconds;
+        return this.formatBytes(bytesPerSecond) + '/s';
     }
 
     calculateETA(upload) {
-        if (!upload.progress || upload.progress === 0) return 'calculating';
+        if (!upload.progress || upload.progress === 0 || !upload.startedAt || !upload.bytesUploaded) {
+            return 'calculating...';
+        }
+
+        const elapsedSeconds = (Date.now() - upload.startedAt) / 1000;
+        if (elapsedSeconds < 2) return 'calculating...';
+
+        const bytesPerSecond = upload.bytesUploaded / elapsedSeconds;
+        if (bytesPerSecond === 0) return 'calculating...';
 
         const remaining = upload.totalBytes - upload.bytesUploaded;
-        // TODO: Calculate based on actual speed
-        const secondsRemaining = remaining / (2.3 * 1024 * 1024);
+        const secondsRemaining = remaining / bytesPerSecond;
 
         if (secondsRemaining < 60) {
             return `${Math.round(secondsRemaining)}s`;
-        } else {
+        } else if (secondsRemaining < 3600) {
             return `${Math.round(secondsRemaining / 60)}m`;
+        } else {
+            return `${Math.round(secondsRemaining / 3600)}h`;
         }
     }
 

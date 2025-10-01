@@ -1455,6 +1455,7 @@
                                         <label for="account-type-select">Account Type</label>
                                         <select id="account-type-select" class="form-control">
                                             <option value="s3">S3-Compatible Storage</option>
+                                            <option value="sc-player">StarCapture Player</option>
                                             <option value="youtube">YouTube</option>
                                             <option value="twitch">Twitch (Streaming - Coming Soon)</option>
                                         </select>
@@ -1596,6 +1597,22 @@
         // Make ipcRenderer globally available for all modules
         window.ipcRenderer = ipcRenderer;
 
+        // Load feature flags from package.json
+        const packageJson = require('./package.json');
+        const features = packageJson.features || {};
+
+        // Hide SC Player option if feature flag is disabled
+        if (!features.scPlayer) {
+            // This runs before DOMContentLoaded, so we need to wait for the option to exist
+            document.addEventListener('DOMContentLoaded', () => {
+                const scPlayerOption = document.querySelector('#account-type-select option[value="sc-player"]');
+                if (scPlayerOption) {
+                    scPlayerOption.remove();
+                    console.log('SC Player feature is disabled - option hidden');
+                }
+            });
+        }
+
         // Window control handlers (for frameless window)
         document.getElementById('minimize-btn')?.addEventListener('click', () => {
             ipcRenderer.send('window-control', 'minimize');
@@ -1637,7 +1654,7 @@
 
         // Listen for status updates from main process
         ipcRenderer.on('status-update', (event, state) => {
-            console.log('Status update:', state);
+            // Removed console spam - was logging every status update
 
             // Update Supervisor status
             if (state.supervisor) {
@@ -1754,13 +1771,18 @@
             const logMonitorReady = state.starCitizen?.logActive === true;
 
             // Update global system ready status - all systems must be ready including log monitor
-            window.systemReady = obsReady && websocketReady && starCitizenReady && logMonitorReady;
-            console.log("System ready:", window.systemReady, {
-                obs: obsReady,
-                websocket: websocketReady,
-                starCitizen: starCitizenReady,
-                logMonitor: logMonitorReady
-            });
+            const newSystemReady = obsReady && websocketReady && starCitizenReady && logMonitorReady;
+
+            // Only log when system ready state changes (not on every status update)
+            if (window.systemReady !== newSystemReady) {
+                console.log("System ready:", newSystemReady, {
+                    obs: obsReady,
+                    websocket: websocketReady,
+                    starCitizen: starCitizenReady,
+                    logMonitor: logMonitorReady
+                });
+            }
+            window.systemReady = newSystemReady;
         });
 
         // Poll for initial status

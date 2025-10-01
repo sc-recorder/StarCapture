@@ -174,23 +174,32 @@ class PostController {
             console.error('Video playback error:', e);
             const error = this.videoPlayer.error;
             if (error) {
-                let errorMsg = 'Video playback failed: ';
-                switch(error.code) {
-                    case error.MEDIA_ERR_ABORTED:
-                        errorMsg += 'Playback aborted';
-                        break;
-                    case error.MEDIA_ERR_NETWORK:
-                        errorMsg += 'Network error';
-                        break;
-                    case error.MEDIA_ERR_DECODE:
-                        errorMsg += 'Video decode error (codec may not be supported)';
-                        break;
-                    case error.MEDIA_ERR_SRC_NOT_SUPPORTED:
-                        errorMsg += 'Video format or codec not supported. HEVC/AV1 videos may not play in Electron due to codec limitations.';
-                        break;
-                    default:
-                        errorMsg += 'Unknown error';
+                let errorMsg = '';
+
+                // Check if video source is empty (during file operations)
+                if (!this.videoPlayer.src || this.videoPlayer.src === '' || this.videoPlayer.src === 'about:blank') {
+                    errorMsg = 'No video loaded';
+                } else {
+                    // Actual video errors
+                    errorMsg = 'Video playback failed: ';
+                    switch(error.code) {
+                        case error.MEDIA_ERR_ABORTED:
+                            errorMsg += 'Playback aborted';
+                            break;
+                        case error.MEDIA_ERR_NETWORK:
+                            errorMsg += 'Network error';
+                            break;
+                        case error.MEDIA_ERR_DECODE:
+                            errorMsg += 'Video decode error (codec may not be supported)';
+                            break;
+                        case error.MEDIA_ERR_SRC_NOT_SUPPORTED:
+                            errorMsg += 'Incompatible video format';
+                            break;
+                        default:
+                            errorMsg += 'Unable to play video';
+                    }
                 }
+
                 console.error(errorMsg, error.message);
                 // Show error in overlay
                 this.videoOverlay.classList.remove('hidden');
@@ -223,7 +232,25 @@ class PostController {
         // Ask if user wants to generate thumbnails
         const generateThumbnails = await this.confirmGenerateThumbnails();
 
+        // Store original error handler for restoration
+        const originalErrorHandler = this.videoPlayer.onerror;
+
         try {
+            // Release video player file handle before moving
+            console.log('Releasing video player file handle...');
+
+            // Temporarily disable error handler to prevent spurious error messages
+            this.videoPlayer.onerror = null;
+
+            // Hide overlay during file operation
+            this.videoOverlay.classList.add('hidden');
+
+            this.videoPlayer.src = '';
+            this.videoPlayer.load(); // Force release of file handle
+
+            // Brief delay to ensure file handle is fully released
+            await new Promise(resolve => setTimeout(resolve, 200));
+
             // First, save the recording (move to saved folder)
             const result = await ipcRenderer.invoke('move-recording', this.currentVideo);
 
@@ -233,6 +260,13 @@ class PostController {
                 if (this.currentEventsFile && result.newEventsPath) {
                     this.currentEventsFile = result.newEventsPath;
                 }
+
+                // Restore error handler
+                this.videoPlayer.onerror = originalErrorHandler;
+
+                // Reload video at new location using the existing loadVideoFile method
+                console.log('Reloading video at new location:', result.newPath);
+                this.loadVideoFile(result.newPath);
 
                 // Generate thumbnails if user confirmed (after moving to saved folder)
                 if (generateThumbnails && this.events.length > 0) {
@@ -308,6 +342,10 @@ class PostController {
             }
         } catch (error) {
             console.error('Failed to save recording:', error);
+
+            // Restore error handler
+            this.videoPlayer.onerror = originalErrorHandler;
+
             this.showAlert('Failed to save recording');
         }
     }

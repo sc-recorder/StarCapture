@@ -19,11 +19,13 @@ npm run portable    # Step 2: Create portable package
 npm run source:dist # Step 3: Create source distribution
 
 # Publish to S3 (after building)
-npm run publish:all         # Publish all release files
+npm run publish:release     # Publish ZIP, EXE, and current.json (complete release)
+npm run publish:all         # Publish ZIP and EXE only (not source)
 npm run publish:zip         # Publish portable ZIP only
-npm run publish:source      # Publish source ZIP only
+npm run publish:source      # Publish source ZIP only (separate)
 npm run publish:exe         # Publish installer EXE only
 npm run publish:log-patterns # Publish log patterns config only
+npm run publish:current     # Publish current.json for auto-updates
 ```
 
 ## Build Process
@@ -74,6 +76,52 @@ This creates `sc-recorder-source-dist.zip` containing:
 - npm 8.x or higher
 - Windows 10/11 (64-bit)
 
+## Configuration
+
+### Logging Configuration
+
+Log levels are configured in `package.json` under the `logging` key:
+
+```json
+"logging": {
+  "level": "info",
+  "console": {
+    "enabled": false,
+    "statusUpdates": false,
+    "recordingStats": false
+  },
+  "file": {
+    "enabled": true,
+    "level": "info",
+    "recordingStats": false
+  }
+}
+```
+
+**Log Levels** (from least to most verbose):
+- `error` - Only errors
+- `warn` - Errors and warnings
+- `info` - Errors, warnings, and informational messages (recommended for production)
+- `debug` - Everything including debug information (development only)
+
+**Settings:**
+- `logging.level` - Global log level (applies to both console and file by default)
+- `file.enabled` - Enable/disable file logging
+- `file.level` - File-specific log level (overrides global level)
+- `file.recordingStats` - Log recording stats every second (creates large logs, disabled by default)
+- `console.enabled` - Enable console logging in browser dev tools
+- `console.statusUpdates` - Log every status update (very verbose)
+- `console.recordingStats` - Log recording stats to console
+
+**Production Recommendations:**
+- Keep `file.level: "info"` to avoid multi-GB log files
+- Keep `file.recordingStats: false` to prevent excessive I/O during recording
+- Keep `console.enabled: false` unless debugging in production
+
+**Log File Location:**
+- Windows: `%APPDATA%\sc-recorder\logs\`
+- Files: `{component-name}-{timestamp}.log` and `{component-name}-latest.log`
+
 ## Publishing to S3
 
 ### One-Time Setup
@@ -108,14 +156,15 @@ This creates `sc-recorder-source-dist.zip` containing:
 
 2. **Publish to S3**
    ```bash
-   # Publish everything (recommended)
+   # Publish main release files (ZIP and EXE)
    npm run publish:all
 
    # Or publish specific files
    npm run publish:zip          # Portable ZIP only
-   npm run publish:source       # Source code ZIP only
    npm run publish:exe          # Windows installer only
-   npm run publish:log-patterns # SC log patterns config only
+   npm run publish:source       # Source code ZIP (separately)
+   npm run publish:log-patterns # SC log patterns config
+   npm run publish:current      # Version info for auto-updates
    ```
 
 3. **Force overwrite existing files** (if needed)
@@ -125,11 +174,12 @@ This creates `sc-recorder-source-dist.zip` containing:
 
 ### What Gets Published
 
-Files are organized in S3 by version:
-- `releases/v{version}/SC-Recorder-{version}-win-portable.zip`
-- `releases/v{version}/SC-Recorder-{version}-source.zip`
-- `releases/v{version}/SC-Recorder-Setup-{version}.exe`
-- `configs/sc-log-patterns-v{version}.json`
+Files are organized in S3:
+- `StarCapture-v{version}.zip` - Portable application
+- `StarCapture-Setup-v{version}.exe` - Windows installer
+- `StarCapture-{version}-source.zip` - Source code (published separately)
+- `sc-log-patterns.json` - Star Citizen log patterns
+- `current.json` - Latest version info for auto-updates
 
 The script will:
 - Check if files already exist (skip unless --force)
@@ -148,7 +198,7 @@ npm run portable     # Step 2: Create portable package
 npm run source:dist  # Step 3: Create source distribution
 
 # Then publish to S3
-npm run publish:all  # Upload all files to S3
+npm run publish:release # Upload ZIP, EXE, and current.json (recommended)
 
 # The script will show URLs like:
 # 🔗 Public URL: https://your-cdn.com/bucket/releases/v1.0.0/SC-Recorder-1.0.0-win-portable.zip

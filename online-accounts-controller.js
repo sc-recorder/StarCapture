@@ -9,6 +9,10 @@ class OnlineAccountsController {
         this.selectedAccountId = null;
         this.isAddDialogOpen = false;
 
+        // Load feature flags from package.json
+        const packageJson = require('./package.json');
+        this.features = packageJson.features || {};
+
         // Get ipcRenderer from global scope
         this.ipc = window.ipcRenderer || (typeof ipcRenderer !== 'undefined' ? ipcRenderer : null);
         if (!this.ipc) {
@@ -124,7 +128,13 @@ class OnlineAccountsController {
 
         // Save account button
         if (this.saveAccountBtn) {
-            this.saveAccountBtn.addEventListener('click', () => this.saveAccount());
+            console.log('[OnlineAccounts] Save button found, adding listener');
+            this.saveAccountBtn.addEventListener('click', () => {
+                console.log('[OnlineAccounts] Save button clicked');
+                this.saveAccount();
+            });
+        } else {
+            console.warn('[OnlineAccounts] Save button not found!');
         }
 
         // Cancel button
@@ -162,7 +172,12 @@ class OnlineAccountsController {
     renderAccounts() {
         if (!this.accountsList) return;
 
-        if (this.accounts.length === 0) {
+        // Filter out SC Player accounts if feature is disabled
+        const visibleAccounts = this.features.scPlayer
+            ? this.accounts
+            : this.accounts.filter(account => account.type !== 'sc-player');
+
+        if (visibleAccounts.length === 0) {
             this.accountsList.innerHTML = `
                 <div class="empty-state">
                     <p>No accounts configured</p>
@@ -172,24 +187,52 @@ class OnlineAccountsController {
             return;
         }
 
-        this.accountsList.innerHTML = this.accounts.map(account => `
-            <div class="account-item ${account.id === this.selectedAccountId ? 'selected' : ''}"
-                 data-account-id="${account.id}">
-                <div class="account-icon">
-                    ${this.getAccountIcon(account.type)}
+        this.accountsList.innerHTML = visibleAccounts.map(account => {
+            // Build account status based on type
+            let statusHtml = '';
+
+            if (account.type === 'sc-player' && account.accountInfo) {
+                const info = account.accountInfo;
+                statusHtml = `
+                    <div class="sc-player-status">
+                        <div class="sc-player-summary">
+                            <span title="Characters">👤 ${info.characterCount}</span>
+                            <span title="Organizations">🏢 ${info.organizationCount}</span>
+                        </div>
+                        ${info.hasStorage ? `
+                            <div class="storage-progress-container">
+                                <div class="storage-progress" title="${info.storagePercentage}% used">
+                                    <div class="storage-progress-bar" style="width: ${info.storagePercentage}%"></div>
+                                </div>
+                                <div class="storage-text">
+                                    💾 ${info.storageUsedFormatted} / ${info.storageQuotaFormatted}
+                                </div>
+                            </div>
+                        ` : '<div class="no-storage">📝 Indexing only</div>'}
+                    </div>
+                `;
+            } else if (account.uploadCount > 0) {
+                statusHtml = `<span class="upload-count">${account.uploadCount} uploads</span>`;
+            } else {
+                statusHtml = '<span class="text-muted">No uploads yet</span>';
+            }
+
+            return `
+                <div class="account-item ${account.id === this.selectedAccountId ? 'selected' : ''}"
+                     data-account-id="${account.id}">
+                    <div class="account-icon">
+                        ${this.getAccountIcon(account.type)}
+                    </div>
+                    <div class="account-info">
+                        <div class="account-name">${this.escapeHtml(account.name)}</div>
+                        <div class="account-type">${this.getAccountTypeName(account.type)}</div>
+                    </div>
+                    <div class="account-status">
+                        ${statusHtml}
+                    </div>
                 </div>
-                <div class="account-info">
-                    <div class="account-name">${this.escapeHtml(account.name)}</div>
-                    <div class="account-type">${this.getAccountTypeName(account.type)}</div>
-                </div>
-                <div class="account-status">
-                    ${account.uploadCount > 0 ?
-                        `<span class="upload-count">${account.uploadCount} uploads</span>` :
-                        '<span class="text-muted">No uploads yet</span>'
-                    }
-                </div>
-            </div>
-        `).join('');
+            `;
+        }).join('');
 
         // Add click handlers
         this.accountsList.querySelectorAll('.account-item').forEach(item => {
@@ -253,6 +296,9 @@ class OnlineAccountsController {
             case 's3':
                 this.renderS3Form();
                 break;
+            case 'sc-player':
+                this.renderSCPlayerForm();
+                break;
             case 'youtube':
                 this.renderYouTubeForm();
                 break;
@@ -304,6 +350,99 @@ class OnlineAccountsController {
                 </label>
             </div>
         `;
+    }
+
+    renderSCPlayerForm() {
+        this.accountForm.innerHTML = `
+            <div class="form-group">
+                <label for="sc-player-api-key">API Key</label>
+                <input type="password" id="sc-player-api-key" class="form-control" required
+                       placeholder="scplayer_xxx...">
+                <small class="form-text">Your StarCapture Player API key (starts with 'scplayer_')</small>
+            </div>
+            <div class="form-group">
+                <label for="sc-player-base-url">Server URL (optional)</label>
+                <input type="text" id="sc-player-base-url" class="form-control"
+                       placeholder="https://api.starcapture.video/api"
+                       value="https://api.starcapture.video/api">
+                <small class="form-text">Leave as default unless using a custom server</small>
+            </div>
+            <div class="form-group" id="sc-player-test-status" style="display: none;">
+                <div style="padding: 12px; background: var(--card-bg); border-radius: 6px; border: 1px solid var(--border);">
+                    <div id="sc-player-status-message"></div>
+                </div>
+            </div>
+            <div class="form-group">
+                <button type="button" id="sc-player-test-btn" class="btn btn-secondary">
+                    Test Connection
+                </button>
+            </div>
+        `;
+
+        // Add test connection handler
+        const testBtn = document.getElementById('sc-player-test-btn');
+        const apiKeyInput = document.getElementById('sc-player-api-key');
+        const baseUrlInput = document.getElementById('sc-player-base-url');
+
+        if (testBtn && apiKeyInput) {
+            testBtn.addEventListener('click', async () => {
+                const statusDiv = document.getElementById('sc-player-test-status');
+                const statusMessage = document.getElementById('sc-player-status-message');
+
+                if (!apiKeyInput.value) {
+                    if (statusDiv) statusDiv.style.display = 'block';
+                    if (statusMessage) {
+                        statusMessage.innerHTML = '<span style="color: var(--error);">Please enter an API key</span>';
+                    }
+                    return;
+                }
+
+                if (statusDiv) statusDiv.style.display = 'block';
+                if (statusMessage) statusMessage.innerHTML = '<span style="color: var(--text-secondary);">Testing connection...</span>';
+                testBtn.disabled = true;
+
+                try {
+                    const result = await this.ipc.invoke('upload:test-account', {
+                        type: 'sc-player',
+                        credentials: {
+                            apiKey: apiKeyInput.value
+                        },
+                        config: {
+                            baseUrl: baseUrlInput.value || 'https://api.starcapture.video/api'
+                        }
+                    });
+
+                    if (result.success && result.details) {
+                        const details = result.details;
+                        let html = '<div style="color: var(--success);">✓ Connected successfully!</div>';
+                        html += '<div style="margin-top: 8px; font-size: 14px; color: var(--text-secondary);">';
+                        html += `<div>Account: ${details.username || 'Unknown'}</div>`;
+                        html += `<div>Found ${details.characterCount} character${details.characterCount !== 1 ? 's' : ''}, `;
+                        html += `${details.organizationCount} organization${details.organizationCount !== 1 ? 's' : ''}</div>`;
+
+                        if (details.hasStorage) {
+                            html += `<div style="margin-top: 4px;">Storage: ${details.storageUsedFormatted} / ${details.storageQuotaFormatted}`;
+                            html += ` (${details.storagePercentage}% used)</div>`;
+                        } else {
+                            html += '<div style="margin-top: 4px; color: var(--warning);">No storage quota (indexing only)</div>';
+                        }
+                        html += '</div>';
+
+                        if (statusMessage) statusMessage.innerHTML = html;
+                    } else {
+                        if (statusMessage) {
+                            statusMessage.innerHTML = `<span style="color: var(--error);">Connection failed: ${result.message || 'Unknown error'}</span>`;
+                        }
+                    }
+                } catch (error) {
+                    if (statusMessage) {
+                        statusMessage.innerHTML = `<span style="color: var(--error);">Error: ${error.message}</span>`;
+                    }
+                } finally {
+                    testBtn.disabled = false;
+                }
+            });
+        }
     }
 
     renderYouTubeForm() {
@@ -439,8 +578,11 @@ class OnlineAccountsController {
     }
 
     async saveAccount() {
+        console.log('[OnlineAccounts] saveAccount called');
         const accountType = this.accountTypeSelect?.value || 's3';
         const accountName = this.accountNameInput?.value?.trim();
+
+        console.log('[OnlineAccounts] Account type:', accountType, 'Account name:', accountName);
 
         if (!accountName) {
             this.showStatus('Please enter an account name', 'error');
@@ -452,6 +594,10 @@ class OnlineAccountsController {
         switch (accountType) {
             case 's3':
                 accountData = this.collectS3Data();
+                if (!accountData) return;
+                break;
+            case 'sc-player':
+                accountData = this.collectSCPlayerData();
                 if (!accountData) return;
                 break;
             case 'youtube':
@@ -493,6 +639,7 @@ class OnlineAccountsController {
     }
 
     collectS3Data() {
+        console.log('[OnlineAccounts] collectS3Data called');
         const accessKey = document.getElementById('s3-access-key')?.value?.trim();
         const secretKey = document.getElementById('s3-secret-key')?.value?.trim();
         const bucket = document.getElementById('s3-bucket')?.value?.trim();
@@ -501,6 +648,12 @@ class OnlineAccountsController {
         const publicUrl = document.getElementById('s3-public-url')?.value?.trim();
         const prefix = document.getElementById('s3-prefix')?.value?.trim();
         const forcePathStyle = document.getElementById('s3-force-path-style')?.checked || false;
+
+        console.log('[OnlineAccounts] S3 form data:', {
+            accessKey: accessKey ? '***' : 'empty',
+            secretKey: secretKey ? '***' : 'empty',
+            bucket, region, endpoint, publicUrl, prefix, forcePathStyle
+        });
 
         if (!accessKey || !secretKey || !bucket) {
             this.showStatus('Please fill in all required fields', 'error');
@@ -519,6 +672,30 @@ class OnlineAccountsController {
                 publicUrl: publicUrl || undefined,
                 prefix: prefix || undefined,
                 forcePathStyle
+            }
+        };
+    }
+
+    collectSCPlayerData() {
+        const apiKey = document.getElementById('sc-player-api-key')?.value?.trim();
+        const baseUrl = document.getElementById('sc-player-base-url')?.value?.trim() || 'https://api.starcapture.video/api';
+
+        if (!apiKey) {
+            this.showStatus('Please enter an API key', 'error');
+            return null;
+        }
+
+        if (!apiKey.startsWith('scplayer_')) {
+            this.showStatus('API key must start with "scplayer_"', 'error');
+            return null;
+        }
+
+        return {
+            credentials: {
+                apiKey
+            },
+            config: {
+                baseUrl
             }
         };
     }
@@ -688,6 +865,7 @@ class OnlineAccountsController {
     getAccountIcon(type) {
         const icons = {
             's3': '☁️',
+            'sc-player': '🚀',
             'youtube': '📺',
             'twitch': '🎮'
         };
@@ -697,6 +875,7 @@ class OnlineAccountsController {
     getAccountTypeName(type) {
         const names = {
             's3': 'S3-Compatible Storage',
+            'sc-player': 'StarCapture Player',
             'youtube': 'YouTube',
             'twitch': 'Twitch'
         };

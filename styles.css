@@ -4656,6 +4656,65 @@ video::-webkit-media-controls-timeline {
     font-size: 13px;
 }
 
+/* SC Player Status Styles */
+.sc-player-status {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 250px;
+}
+
+.sc-player-summary {
+    font-size: 13px;
+    color: var(--text-secondary);
+    display: flex;
+    gap: 12px;
+    align-items: center;
+}
+
+.sc-player-summary span {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.storage-progress-container {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.storage-progress {
+    height: 8px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 4px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.storage-progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, var(--primary), var(--accent));
+    border-radius: 3px;
+    transition: width 0.3s ease;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.storage-text {
+    font-size: 12px;
+    color: var(--text-secondary);
+    text-align: right;
+    font-weight: 500;
+}
+
+.no-storage {
+    font-size: 12px;
+    color: var(--warning);
+    font-style: italic;
+    opacity: 0.8;
+}
+
 .empty-state {
     text-align: center;
     padding: 60px 20px;
@@ -5494,5 +5553,71 @@ video::-webkit-media-controls-timeline {
 .spacer-100 {
     height: 100px;
     visibility: hidden;
+}
+
+/* SC Player Direct Upload Validation Styling */
+.upload-requirements-status {
+    margin: 15px 0;
+}
+
+.upload-requirements-status .error-message {
+    background: rgba(220, 38, 38, 0.1);
+    color: #fca5a5;
+    border: 1px solid rgba(220, 38, 38, 0.3);
+    padding: 15px;
+    border-radius: 5px;
+    margin: 15px 0;
+}
+
+.upload-requirements-status .warning-message {
+    background: rgba(251, 191, 36, 0.1);
+    color: #fcd34d;
+    border: 1px solid rgba(251, 191, 36, 0.3);
+    padding: 15px;
+    border-radius: 5px;
+    margin: 15px 0;
+}
+
+.upload-requirements-status .success-message {
+    background: rgba(34, 197, 94, 0.1);
+    color: #86efac;
+    border: 1px solid rgba(34, 197, 94, 0.3);
+    padding: 15px;
+    border-radius: 5px;
+    margin: 15px 0;
+}
+
+.upload-requirements-status ul {
+    margin: 8px 0 0 0;
+    padding-left: 20px;
+    font-size: 13px;
+}
+
+.upload-requirements-status li {
+    margin: 4px 0;
+}
+
+#generate-thumbnails-btn {
+    margin-top: 10px;
+    width: 100%;
+    padding: 10px;
+    border: none;
+    border-radius: 4px;
+    background: var(--primary);
+    color: var(--primary-foreground);
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+#generate-thumbnails-btn:hover:not(:disabled) {
+    background: var(--primary-hover);
+    transform: translateY(-1px);
+}
+
+#generate-thumbnails-btn:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+    transform: none;
 }
 
