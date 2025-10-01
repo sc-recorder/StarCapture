@@ -1,6 +1,6 @@
 {
   "name": "SC Recorder Log Patterns",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Star Citizen log parsing patterns for SC Recorder",
   "transforms": {
     "parseTimestamp": {
@@ -603,6 +603,15 @@
       "pattern": "<(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z)>\\s*\\[Notice\\]\\s*<CObjectiveMarkerComponent::AddToPlayerDataBank>\\s*([^\\[]+)\\[([^\\]]+)\\] - Added to DataBank of Player: ([^\\[]+)\\[([^\\]]+)\\] - ZonePos: x: ([^,]+), y: ([^,]+), z: ([^,]+), missionId\\[([^\\]]+)\\], objectiveId\\[([^\\]]+)\\]",
       "description": "Detects when a mission waypoint/objective marker is added",
       "severity": "low",
+      "deduplication": {
+        "enabled": true,
+        "strategy": "field-based",
+        "window": 5000,
+        "keys": [
+          "markerId",
+          "objectiveId"
+        ]
+      },
       "fields": {
         "timestamp": {
           "group": 1,

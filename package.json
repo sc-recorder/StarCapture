@@ -1,6 +1,6 @@
 {
   "name": "sc-recorder",
-  "version": "1.1.5",
+  "version": "1.1.6",
   "description": "Star Citizen Gameplay Recorder",
   "main": "main.js",
   "scripts": {
@@ -57,6 +57,8 @@
       "!*.md",
       "!.git/**",
       "!.gitignore",
+      "!.claude/**",
+      "!CLAUDE.md",
       "!build-portable.js",
       "!create-source-distribution.js",
       "!dist/**",
