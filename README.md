@@ -42,4 +42,4 @@ GPL v3 - See LICENSE file for details
 
 ## Support
 
-Report issues at: https://github.com/sc-recordder/starcapture/issues
+Report issues at: https://github.com/sc-recorder/starcapture/issues
