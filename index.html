@@ -224,7 +224,7 @@
 
                 <!-- Post Processing View -->
                 <div id="post-view" class="view" style="display: none;">
-                    <div class="post-header">
+                        <div class="post-header">
                         <div class="post-controls">
                             <button id="browse-recordings-btn" class="btn btn-primary">Browse Recordings</button>
                             <button id="load-video-btn" class="btn btn-secondary">Manual Load Video</button>
@@ -235,6 +235,9 @@
                             <button id="export-clips-btn" class="btn btn-secondary" disabled>Export Clips</button>
                             <button id="upload-video-btn" class="btn btn-secondary" disabled title="Upload video to cloud storage">
                                 <span>☁️</span> Upload
+                            </button>
+                            <button id="export-otio-btn" class="btn btn-secondary" disabled title="Export timeline markers to DaVinci Resolve (OTIO format)">
+                                <span>🎬</span> Export for DaVinci Resolve
                             </button>
                             <button id="save-filtered-btn" class="btn btn-secondary" disabled title="Creates a new JSON event file with only the displayed events. The original events file will be saved as a backup">Export Filtered
                                 Events</button>
@@ -268,6 +271,42 @@
                                     onclick="document.getElementById('save-filtered-dialog').style.display='none'">Cancel</button>
                                 <button class="btn btn-primary"
                                     onclick="window.postController.confirmSaveFilteredEvents()">Export Events</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- OTIO Export Dialog -->
+                    <div id="otio-export-dialog" class="modal" style="display: none;">
+                        <div class="modal-content compact">
+                            <div class="modal-header">
+                                <h3>Export for DaVinci Resolve</h3>
+                                <button class="modal-close"
+                                    onclick="document.getElementById('otio-export-dialog').style.display='none'">&times;</button>
+                            </div>
+                        <div class="modal-body">
+                            <div class="dialog-info">
+                                <p><strong>Events to export:</strong> <span id="otio-event-count">0</span> events</p>
+                                <p><strong>Duration mode:</strong> <span id="otio-duration-mode">Auto</span></p>
+                                <p><strong>Output file:</strong> <span id="otio-output-path">video.otio</span></p>
+                            </div>
+                                <div class="dialog-info">
+                                    <p><strong>Export settings:</strong></p>
+                                    <div id="otio-export-settings">
+                                        <!-- Settings will be populated dynamically -->
+                                    </div>
+                                </div>
+                                <div class="dialog-warning">
+                                    <p>🎬 This will create an OTIO file for DaVinci Resolve with timeline markers.</p>
+                                    <p>📍 Each event will be marked as a timeline marker at its video timestamp.</p>
+                                    <p>🎯 The file can be imported directly into DaVinci Resolve's Edit page.</p>
+                                    <p>💾 Original files will not be modified.</p>
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button class="btn btn-secondary"
+                                    onclick="document.getElementById('otio-export-dialog').style.display='none'">Cancel</button>
+                                <button class="btn btn-primary"
+                                    onclick="window.postController.confirmOTIOExport()">Export to DaVinci Resolve</button>
                             </div>
                         </div>
                     </div>
