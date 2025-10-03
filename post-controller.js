@@ -1,4 +1,6 @@
 const path = require('path');
+const OTIOExporter = require('./lib/otio-exporter');
+const OTIOConfigLoader = require('./lib/otio-config-loader');
 
 /**
  * Post Processing Controller
@@ -87,6 +89,7 @@ class PostController {
         document.getElementById('load-events-btn')?.addEventListener('click', () => this.loadEvents());
         document.getElementById('save-recording-btn')?.addEventListener('click', () => this.saveRecording());
         document.getElementById('export-clips-btn')?.addEventListener('click', () => this.exportClips());
+        document.getElementById('export-otio-btn')?.addEventListener('click', () => this.showOTIOExportDialog());
         document.getElementById('upload-video-btn')?.addEventListener('click', () => this.uploadVideo());
         
         // Modal controls (these are for the old modal, now handled by SharedVideoBrowser)
@@ -483,9 +486,11 @@ class PostController {
                 
                 // Enable export buttons if we have events
                 const exportBtn = document.getElementById('export-clips-btn');
+                const exportOTIOBtn = document.getElementById('export-otio-btn');
                 const saveFilteredBtn = document.getElementById('save-filtered-btn');
                 if (this.events.length > 0) {
                     if (exportBtn) exportBtn.disabled = false;
+                    if (exportOTIOBtn) exportOTIOBtn.disabled = false;
                     if (saveFilteredBtn) saveFilteredBtn.disabled = false;
                 }
                 
@@ -536,7 +541,19 @@ class PostController {
                 </button>
             `;
 
+            // Add click handler for jumping to event
             eventEl.addEventListener('click', () => this.jumpToEvent(index));
+
+            // Add double-click handler for editing (only for editable events)
+            if (isEditable) {
+                eventEl.addEventListener('dblclick', (e) => {
+                    e.stopPropagation();
+                    this.editEvent(index);
+                });
+                // Make it clear the event is interactive
+                eventEl.style.cursor = 'pointer';
+                eventEl.title = `${event.name || event.type} - Click to jump, Double-click to edit`;
+            }
 
             this.timelineEvents.appendChild(eventEl);
         });
@@ -2625,28 +2642,170 @@ class PostController {
     }
 
     /**
-     * Save events back to the JSON file
+     * Show OTIO export dialog with pre-filled information
      */
-    async saveEventsToFile() {
-        if (!this.currentEventsFile) {
-            throw new Error('No events file loaded');
+    async showOTIOExportDialog() {
+        const filteredEvents = this.filteredEvents.length > 0 ? this.filteredEvents : this.events;
+
+        if (filteredEvents.length === 0) {
+            this.showAlert('No events to export to DaVinci Resolve');
+            return;
         }
 
-        const fs = require('fs').promises;
+        if (!this.currentVideo) {
+            this.showAlert('Please load a video file first to enable OTIO export');
+            return;
+        }
 
-        // Build the full JSON structure
-        const data = {
-            metadata: {
-                version: '1.0.0',
-                recorder: 'SC-Recorder',
-                eventCount: this.events.length,
-                modifiedAt: new Date().toISOString()
-            },
-            events: this.events
-        };
+        // Load settings and create exporter
+        let config;
+        try {
+            config = await OTIOConfigLoader.loadSettings();
+        } catch (error) {
+            console.warn('Could not load OTIO config, using defaults:', error);
+            config = {};
+        }
+        const exporter = new OTIOExporter(config);
 
-        // Write to file
-        await fs.writeFile(this.currentEventsFile, JSON.stringify(data, null, 2));
+        // Get basic export summary (this is sync but doesn't include actual framerate)
+        const basicSummary = exporter.getExportSummary(filteredEvents, null, this.currentVideo);
+
+        // Update dialog with initial information
+        document.getElementById('otio-event-count').textContent = basicSummary.eventCount;
+        document.getElementById('otio-duration-mode').textContent = basicSummary.clipDurationMode;
+
+        // Generate output path (same directory as video, .otio extension)
+        const parsed = path.parse(this.currentVideo);
+        const outputPath = path.join(parsed.dir, `${parsed.name}.otio`);
+        document.getElementById('otio-output-path').textContent = parsed.name + '.otio';
+
+        // Show export settings
+        const settingsContainer = document.getElementById('otio-export-settings');
+        if (settingsContainer) {
+            settingsContainer.innerHTML = `
+                <div class="export-setting-item">
+                    <span class="setting-label">Include Filter Metadata:</span>
+                    <span class="setting-value">${basicSummary.includeFilterMetadata ? 'Yes' : 'No'}</span>
+                </div>
+                <div class="export-setting-item">
+                    <span class="setting-label">Video Path:</span>
+                    <span class="setting-value">${basicSummary.videoPath}</span>
+                </div>
+            `;
+        }
+
+        // Show the dialog immediately
+        document.getElementById('otio-export-dialog').style.display = 'flex';
+
+        // Now detect the actual frame rate asynchronously
+        try {
+            const actualFrameRate = await exporter.resolveFrameRate(this.currentVideo);
+            console.log(`Detected video framerate: ${actualFrameRate} fps`);
+
+            // Update the settings display with detected framerate
+            if (settingsContainer) {
+                settingsContainer.innerHTML = `
+                    <div class="export-setting-item">
+                        <span class="setting-label">Include Filter Metadata:</span>
+                        <span class="setting-value">${basicSummary.includeFilterMetadata ? 'Yes' : 'No'}</span>
+                    </div>
+                    <div class="export-setting-item">
+                        <span class="setting-label">Video Path:</span>
+                        <span class="setting-value">${basicSummary.videoPath}</span>
+                    </div>
+                    <div class="export-setting-item">
+                        <span class="setting-label">Detected Framerate:</span>
+                        <span class="setting-value">${actualFrameRate} fps</span>
+                    </div>
+                `;
+            }
+
+        } catch (error) {
+            console.error('Could not detect video framerate:', error);
+
+            // Update settings to show detection failed
+            if (settingsContainer) {
+                settingsContainer.innerHTML = `
+                    <div class="export-setting-item">
+                        <span class="setting-label">Include Filter Metadata:</span>
+                        <span class="setting-value">${basicSummary.includeFilterMetadata ? 'Yes' : 'No'}</span>
+                    </div>
+                    <div class="export-setting-item">
+                        <span class="setting-label">Video Path:</span>
+                        <span class="setting-value">${basicSummary.videoPath}</span>
+                    </div>
+                    <div class="export-setting-item">
+                        <span class="setting-label">Detected Framerate:</span>
+                        <span class="setting-value">30 fps (fallback - detection failed)</span>
+                    </div>
+                `;
+            }
+        }
+    }
+
+    /**
+     * Confirm and execute OTIO export (called from dialog)
+     */
+    async confirmOTIOExport() {
+        // Hide dialog
+        document.getElementById('otio-export-dialog').style.display = 'none';
+
+        try {
+            // Load settings from config
+            const config = await OTIOConfigLoader.loadSettings();
+            const exporter = new OTIOExporter(config);
+
+            const filteredEvents = this.filteredEvents.length > 0 ? this.filteredEvents : this.events;
+
+            // Collect filter metadata for export
+            const filterMetadata = {
+                active: this.excludeFilters.length > 0 || this.includeFilters.length > 0,
+                exclude_count: this.excludeFilters.filter(f => f.field && f.value).length,
+                include_count: this.includeFilters.filter(f => f.field && f.value).length,
+                exclude_filters: this.excludeFilters.filter(f => f.field && f.value),
+                include_filters: this.includeFilters.filter(f => f.field && f.value)
+            };
+
+            console.log(`Starting OTIO export: ${filteredEvents.length} events`);
+
+            // Export to OTIO (this will auto-detect framerate from video if available)
+            const otioData = await exporter.exportEventsToOTIO(filteredEvents, filterMetadata, this.currentVideo);
+
+            // Generate output path (same directory as video, .otio extension)
+            const parsed = path.parse(this.currentVideo);
+            const savePath = path.join(parsed.dir, `${parsed.name}.otio`);
+
+            console.log(`Saving OTIO file to: ${savePath}`);
+
+            // Write the OTIO file to the video directory
+            await ipcRenderer.invoke('write-file', savePath, JSON.stringify(otioData, null, 2));
+
+            this.showAlert(
+                `<p><strong>✅ OTIO Export Successful!</strong></p>
+                <p>Timeline exported for DaVinci Resolve:</p>
+                <p><code>${savePath}</code></p>
+                <p style="margin-top: 10px;">You can now import this file directly into DaVinci Resolve.</p>`,
+                'DaVinci Resolve Export'
+            );
+
+            console.log(`OTIO export completed: ${savePath}`);
+
+        } catch (error) {
+            console.error('OTIO export failed:', error);
+            this.showAlert(
+                `<p><strong>❌ OTIO Export Failed</strong></p>
+                <p>${error.message}</p>`,
+                'Export Error'
+            );
+        }
+    }
+
+    /**
+     * Export events to DaVinci Resolve (OTIO format) - Legacy method for direct calls
+     */
+    async exportEventsToOTIOFile() {
+        // For backward compatibility, directly call the confirmation method
+        await this.confirmOTIOExport();
     }
 
 }

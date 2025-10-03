@@ -1,0 +1,46 @@
+{
+  "defaultSettings": {
+    "frameRate": "auto",
+    "includeFilterMetadata": true,
+    "clipDurationMode": "minimal",
+    "fixedClipDuration": 1.0,
+    "minimalClipDuration": 0.1,
+    "trackName": "Events Track",
+    "autoSavePath": true,
+    "autoReplaceFile": false,
+    "exportPreset": "daVinciResolve"
+  },
+  "frameRates": [
+    { "value": "auto", "label": "Auto-detect from video" },
+    { "value": 24, "label": "24 fps (Film)" },
+    { "value": 25, "label": "25 fps (PAL)" },
+    { "value": 30, "label": "30 fps (NTSC)" },
+    { "value": 50, "label": "50 fps (HD)" },
+    { "value": 60, "label": "60 fps (HD)" }
+  ],
+  "durationModes": [
+    { "value": "auto", "label": "Auto (Until next event)" },
+    { "value": "fixed", "label": "Fixed duration (configurable)" },
+    { "value": "minimal", "label": "Minimal (0.1s marker)" }
+  ],
+  "exportPresets": {
+    "daVinciResolve": {
+      "frameRate": "auto",
+      "includeFilterMetadata": true,
+      "clipDurationMode": "auto",
+      "description": "Optimized settings for DaVinci Resolve"
+    },
+    "minimal": {
+      "frameRate": 30,
+      "includeFilterMetadata": false,
+      "clipDurationMode": "minimal",
+      "description": "Fast export with minimal data"
+    },
+    "timelineOnly": {
+      "frameRate": "auto",
+      "includeFilterMetadata": false,
+      "clipDurationMode": "minimal",
+      "description": "Timeline only with markers, no event data"
+    }
+  }
+}

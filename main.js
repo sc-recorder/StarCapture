@@ -3519,6 +3519,12 @@ ipcMain.handle('show-open-dialog', async (event, options) => {
   return dialog.showOpenDialog(mainWindow, options);
 });
 
+// Show save dialog for file selection
+ipcMain.handle('show-save-dialog', async (event, options) => {
+  const { dialog } = require('electron');
+  return dialog.showSaveDialog(mainWindow, options);
+});
+
 // Browse for folder selection
 ipcMain.handle('browse-folder', async (event, options) => {
   const { dialog } = require('electron');
@@ -3541,6 +3547,21 @@ ipcMain.handle('file-exists', async (event, filePath) => {
     return true;
   } catch {
     return false;
+  }
+});
+
+// Write file content
+ipcMain.handle('write-file', async (event, filePath, content) => {
+  try {
+    // Ensure directory exists
+    const dir = path.dirname(filePath);
+    await fs.mkdir(dir, { recursive: true });
+
+    await fs.writeFile(filePath, content, 'utf8');
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to write file:', error);
+    return { success: false, error: error.message };
   }
 });
 
