@@ -1437,17 +1437,48 @@ ipcMain.handle('get-displays', async () => {
   const displays = screen.getAllDisplays();
   const primaryDisplay = screen.getPrimaryDisplay();
 
+  console.log('===== DEBUG: Display Detection =====');
+  displays.forEach((display, index) => {
+    console.log(`Display ${index}:`, {
+      id: display.id,
+      'bounds.width': display.bounds.width,
+      'bounds.height': display.bounds.height,
+      'size.width': display.size.width,
+      'size.height': display.size.height,
+      scaleFactor: display.scaleFactor,
+      isPrimary: display.id === primaryDisplay.id
+    });
+  });
+
   // Format display information for the UI
-  return displays.map(display => ({
-    id: display.id,
-    bounds: display.bounds,
-    workArea: display.workArea,
-    size: display.size,
-    scaleFactor: display.scaleFactor,
-    rotation: display.rotation,
-    isPrimary: display.id === primaryDisplay.id,
-    label: `Display ${display.id === primaryDisplay.id ? '(Primary)' : ''} - ${display.size.width}x${display.size.height}`
-  }));
+  const result = displays.map(display => {
+    // On Windows, bounds already contains scaled resolution
+    // To get native/physical resolution: bounds × scaleFactor
+    const nativeWidth = Math.round(display.bounds.width * display.scaleFactor);
+    const nativeHeight = Math.round(display.bounds.height * display.scaleFactor);
+    
+    return {
+      id: display.id,
+      bounds: display.bounds,
+      workArea: display.workArea,
+      // Native/physical resolution (actual monitor pixels)
+      width: nativeWidth,
+      height: nativeHeight,
+      // Logical/scaled resolution (OS scaled)
+      logicalWidth: display.size.width,
+      logicalHeight: display.size.height,
+      scaleFactor: display.scaleFactor,
+      rotation: display.rotation,
+      isPrimary: display.id === primaryDisplay.id,
+      label: `Display ${display.id === primaryDisplay.id ? '(Primary)' : ''} - ${nativeWidth}x${nativeHeight}`
+    };
+  });
+
+  console.log('===== DEBUG: Returning to frontend =====');
+  console.log(JSON.stringify(result, null, 2));
+  console.log('=====================================');
+
+  return result;
 });
 
 // Get display by ID
