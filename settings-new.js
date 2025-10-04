@@ -462,15 +462,20 @@ class NewSettingsManager {
         }
 
         // Resolution settings
-        if (settings.resolution) {
-            const resSelect = document.getElementById('resolution-select-capture');
+        const resSelect = document.getElementById('resolution-select-capture');
+        if (settings.resolution && settings.resolution.preset) {
             if (settings.resolution.preset === 'custom') {
                 resSelect.value = 'custom';
                 document.getElementById('custom-resolution-container-capture').style.display = 'block';
                 document.getElementById('width-input-capture').value = settings.resolution.width;
                 document.getElementById('height-input-capture').value = settings.resolution.height;
-            } else if (settings.resolution.preset) {
+            } else {
                 resSelect.value = settings.resolution.preset;
+            }
+        } else {
+            // Default to native resolution if no setting exists or preset is empty
+            if (resSelect) {
+                resSelect.value = 'native';
             }
         }
 
@@ -575,13 +580,21 @@ class NewSettingsManager {
 
             if (!select) return;
 
+            console.log('===== DEBUG: Frontend Received Displays =====');
+            console.log(JSON.stringify(displays, null, 2));
+
             select.innerHTML = '';
 
             displays.forEach((display, index) => {
                 const option = document.createElement('option');
-                // Check for bounds property which Electron uses
-                const width = display.bounds?.width || display.size?.width || display.width;
-                const height = display.bounds?.height || display.size?.height || display.height;
+                // Use the pre-calculated native resolution from backend
+                const width = display.width;
+                const height = display.height;
+
+                console.log(`Display ${index} - Using width: ${width}, height: ${height}`);
+                console.log(`  - display.width: ${display.width}`);
+                console.log(`  - display.logicalWidth: ${display.logicalWidth}`);
+                console.log(`  - scaleFactor: ${display.scaleFactor}`);
 
                 option.value = display.id;
                 option.textContent = `Display ${index + 1} - ${width}×${height}`;
@@ -589,6 +602,8 @@ class NewSettingsManager {
                 option.dataset.height = height;
                 select.appendChild(option);
             });
+
+            console.log('=============================================');
 
             // Add custom option
             const customOption = document.createElement('option');
