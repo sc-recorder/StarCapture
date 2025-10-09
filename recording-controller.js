@@ -296,9 +296,15 @@ class RecordingController {
      * Start periodic stats updates
      */
     startStatsUpdate() {
+        // Clear any existing interval first
+        if (this.statsInterval) {
+            clearInterval(this.statsInterval);
+            this.statsInterval = null;
+        }
+
         // Update immediately
         this.updateRecordingStats();
-        
+
         // Then update every second
         this.statsInterval = setInterval(() => {
             this.updateRecordingStats();

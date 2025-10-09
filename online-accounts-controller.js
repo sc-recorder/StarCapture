@@ -361,8 +361,8 @@ class OnlineAccountsController {
                 <small class="form-text">Your StarCapture Player API key (starts with 'scplayer_')</small>
             </div>
             <div class="form-group">
-                <label for="sc-player-base-url">Server URL (optional)</label>
-                <input type="text" id="sc-player-base-url" class="form-control"
+                <label for="sc-player-api-base-url">Server URL (optional)</label>
+                <input type="text" id="sc-player-api-base-url" class="form-control"
                        placeholder="https://api.starcapture.video/api"
                        value="https://api.starcapture.video/api">
                 <small class="form-text">Leave as default unless using a custom server</small>
@@ -382,7 +382,7 @@ class OnlineAccountsController {
         // Add test connection handler
         const testBtn = document.getElementById('sc-player-test-btn');
         const apiKeyInput = document.getElementById('sc-player-api-key');
-        const baseUrlInput = document.getElementById('sc-player-base-url');
+        const apiBaseUrlInput = document.getElementById('sc-player-api-base-url');
 
         if (testBtn && apiKeyInput) {
             testBtn.addEventListener('click', async () => {
@@ -408,7 +408,7 @@ class OnlineAccountsController {
                             apiKey: apiKeyInput.value
                         },
                         config: {
-                            baseUrl: baseUrlInput.value || 'https://api.starcapture.video/api'
+                            baseUrl: apiBaseUrlInput.value || 'https://api.starcapture.video/api'
                         }
                     });
 
@@ -678,7 +678,7 @@ class OnlineAccountsController {
 
     collectSCPlayerData() {
         const apiKey = document.getElementById('sc-player-api-key')?.value?.trim();
-        const baseUrl = document.getElementById('sc-player-base-url')?.value?.trim() || 'https://api.starcapture.video/api';
+        const apiBaseUrl = document.getElementById('sc-player-api-base-url')?.value?.trim() || 'https://api.starcapture.video/api';
 
         if (!apiKey) {
             this.showStatus('Please enter an API key', 'error');
@@ -695,7 +695,7 @@ class OnlineAccountsController {
                 apiKey
             },
             config: {
-                baseUrl
+                baseUrl: apiBaseUrl
             }
         };
     }

@@ -9,6 +9,12 @@ const OBSTemplateGenerator = require('./lib/obs-template-generator');
 const OBSCapabilityDetector = require('./lib/obs-capability-detector');
 const PatternUpdater = require('./lib/pattern-updater');
 const AutoUpdater = require('./lib/auto-updater');
+const WindowManager = require('./lib/window-manager');
+const HotkeyManager = require('./lib/hotkey-manager');
+const RecordingHandlers = require('./lib/handlers/recording-handlers');
+const UploadHandlers = require('./lib/handlers/upload-handlers');
+const OAuthHandlers = require('./lib/handlers/oauth-handlers');
+const FileHandlers = require('./lib/handlers/file-handlers');
 
 // Add handlers for uncaught errors to prevent crashes
 process.on('uncaughtException', (error) => {
@@ -41,342 +47,25 @@ let supervisor;
 let configManager;
 let isFirstRun = false;
 let supervisorListenersAttached = false;
-let recordingStatsPromise = null; // Prevent concurrent stats calls
+// Prevent concurrent stats calls and memory leaks - use object for reference sharing
+const recordingStatsPromiseRef = { value: null };
+
+// Manager instances
+let windowManager;
+let hotkeyManager;
+
+// Handler instances
+let recordingHandlers;
+let uploadHandlers;
+let oauthHandlers;
+let fileHandlers;
 
 // OAuth proxy configuration
 const OAUTH_PROXY_URL = 'https://auth.sc-recorder.video';
 
-// Helper function to attach supervisor event listeners (only once)
-function attachSupervisorListeners() {
-  if (supervisorListenersAttached || !supervisor) {
-    return;
-  }
-
-  console.log('Attaching supervisor event listeners...');
-
-  supervisor.on('state-changed', (state) => {
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('status-update', state);
-    }
-  });
-
-  supervisor.on('event', (event) => {
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('event', event);
-    }
-  });
-
-  supervisor.on('recording-status', (data) => {
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('recording-status', data);
-    }
-  });
-
-  supervisor.on('events-saved', (result) => {
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('events-saved', result);
-    }
-  });
-
-  supervisor.on('recording-stats', (data) => {
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('recording-stats', data);
-    }
-  });
-
-  supervisor.on('audio-devices', (data) => {
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('audio-devices', data);
-    }
-  });
-
-  supervisor.on('applications', (data) => {
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('applications', data);
-    }
-  });
-
-  supervisor.on('upload-state-changed', (state) => {
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('upload-state-changed', state);
-    }
-  });
-
-  supervisor.on('upload-started', (upload) => {
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('upload-started', upload);
-    }
-  });
-
-  supervisor.on('upload-progress', (progress) => {
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('upload-progress', progress);
-    }
-  });
-
-  supervisor.on('upload-completed', (upload) => {
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('upload-completed', upload);
-    }
-  });
-
-  supervisor.on('upload-failed', (upload) => {
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('upload-failed', upload);
-    }
-  });
-
-  supervisor.on('error', (data) => {
-    console.error('Supervisor error:', data);
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('supervisor-error', data);
-    }
-  });
-
-  supervisorListenersAttached = true;
-  console.log('Supervisor event listeners attached');
-}
-
-// Register custom protocol for OAuth callbacks
-function registerProtocolHandler() {
-    // Register sc-recorder:// protocol
-    if (process.defaultApp) {
-        if (process.argv.length >= 2) {
-            app.setAsDefaultProtocolClient('sc-recorder', process.execPath, [path.resolve(process.argv[1])]);
-        }
-    } else {
-        app.setAsDefaultProtocolClient('sc-recorder');
-    }
-}
-
-// Handle OAuth callback URLs
-function handleOAuthCallback(url) {
-
-    try {
-        const parsedUrl = new URL(url);
-        if (parsedUrl.host === 'auth' && parsedUrl.pathname === '/callback') {
-            const params = parsedUrl.searchParams;
-            const success = params.get('success') === 'true';
-            const service = params.get('service');
-
-            if (success) {
-                const tokens = {
-                    access_token: params.get('access_token'),
-                    refresh_token: params.get('refresh_token'),
-                    expires_in: parseInt(params.get('expires_in')) || 3600,
-                    service: service
-                };
-
-                // Add client ID for Twitch (needed for API calls)
-                if (service === 'twitch') {
-                    const oauthConfig = oauthConfigLoader.load();
-                    if (oauthConfig?.twitch?.clientId) {
-                        tokens.client_id = oauthConfig.twitch.clientId;
-                    }
-                }
-
-                // Extract user info if present
-                const userInfo = params.get('user_info') ? JSON.parse(decodeURIComponent(params.get('user_info'))) : null;
-
-                // Send tokens and user info to renderer
-                if (mainWindow) {
-                    mainWindow.webContents.send('oauth-callback', {
-                        success: true,
-                        service: service,
-                        tokens: tokens,
-                        userInfo: userInfo
-                    });
-                }
-
-            } else {
-                const error = params.get('error');
-                if (mainWindow) {
-                    mainWindow.webContents.send('oauth-callback', {
-                        success: false,
-                        error: error
-                    });
-                }
-                console.error('[OAuth] Authentication failed:', error);
-            }
-
-            // Focus the app window
-            if (mainWindow) {
-                if (mainWindow.isMinimized()) mainWindow.restore();
-                mainWindow.focus();
-            }
-        }
-    } catch (error) {
-        console.error('[OAuth] Error handling callback:', error);
-    }
-}
-
-function createSplashWindow() {
-  return new Promise((resolve) => {
-    splashWindow = new BrowserWindow({
-      width: 600,
-      height: 600,
-      frame: false,
-      alwaysOnTop: false,
-      transparent: false,
-      resizable: false,
-      show: false,
-      icon: path.join(__dirname, 'build', 'icon.ico'),
-      webPreferences: {
-        nodeIntegration: true,
-        contextIsolation: false
-      }
-    });
-
-    splashWindow.loadFile('splash.html');
-
-    splashWindow.once('ready-to-show', () => {
-      splashWindow.center();
-      splashWindow.show();
-      resolve();
-    });
-  });
-}
-
-function createSetupWindow() {
-  setupWindow = new BrowserWindow({
-    width: 800,
-    height: 775,
-    frame: true,
-    resizable: false,
-    show: false,
-    icon: path.join(__dirname, 'build', 'icon.ico'),
-    webPreferences: {
-      nodeIntegration: true,
-      contextIsolation: false
-    },
-    title: 'StarCapture Setup',
-    autoHideMenuBar: true
-  });
-
-  setupWindow.loadFile('setup-wizard.html');
-
-  setupWindow.once('ready-to-show', () => {
-    // Add 2 second delay before closing splash and showing setup window
-    setTimeout(() => {
-      if (splashWindow) {
-        splashWindow.close();
-        splashWindow = null;
-      }
-      setupWindow.center();
-      setupWindow.show();
-    }, 2000);
-  });
-
-  setupWindow.on('closed', () => {
-    setupWindow = null;
-  });
-}
-
-function createWindow() {
-  mainWindow = new BrowserWindow({
-    width: 1600,
-    height: 900,
-    show: false,
-    frame: false,  // Remove default title bar
-    icon: path.join(__dirname, 'build', 'icon.ico'),
-    webPreferences: {
-      nodeIntegration: true,
-      contextIsolation: false,
-      enableRemoteModule: true
-    },
-    title: 'StarCapture',
-    autoHideMenuBar: true,
-    backgroundColor: '#080d18'
-  });
-
-  require('@electron/remote/main').initialize();
-  require('@electron/remote/main').enable(mainWindow.webContents);
-
-  mainWindow.loadFile('index.html');
-
-  // Handle window controls for frameless window
-  ipcMain.on('window-control', (event, action) => {
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      switch (action) {
-        case 'minimize':
-          mainWindow.minimize();
-          break;
-        case 'maximize':
-          if (mainWindow.isMaximized()) {
-            mainWindow.unmaximize();
-          } else {
-            mainWindow.maximize();
-          }
-          break;
-        case 'close':
-          mainWindow.close();
-          break;
-      }
-    }
-  });
-
-  mainWindow.once('ready-to-show', () => {
-    // Add 2 second delay before closing splash and showing main window
-    setTimeout(() => {
-      if (splashWindow) {
-        splashWindow.close();
-        splashWindow = null;
-      }
-      mainWindow.show();
-
-      // Send initial status update
-      if (supervisor) {
-        const initialState = supervisor.getState();
-        mainWindow.webContents.send('status-update', initialState);
-      }
-    }, 2000);
-
-    // Set up periodic status sync to catch any missed updates
-    setInterval(() => {
-      if (supervisor && mainWindow && !mainWindow.isDestroyed()) {
-        try {
-          const currentState = supervisor.getState();
-          // Check if webContents is valid and ready before sending
-          if (mainWindow.webContents &&
-              !mainWindow.webContents.isDestroyed() &&
-              !mainWindow.webContents.isCrashed() &&
-              !mainWindow.webContents.isLoading()) {
-            // Use executeJavaScript to check if renderer is responsive
-            mainWindow.webContents.executeJavaScript('true', true)
-              .then(() => {
-                // Renderer is responsive, safe to send
-                mainWindow.webContents.send('status-update', currentState);
-              })
-              .catch(() => {
-                // Renderer not responsive, skip this update
-              });
-          }
-        } catch (error) {
-          // Silently ignore errors from disposed frames
-          if (!error.message?.includes('disposed') && !error.message?.includes('WebFrameMain')) {
-            console.error('Error sending status update:', error);
-          }
-        }
-      }
-    }, 3000); // Sync every 3 seconds
-
-    // Open DevTools for development
-    if (!app.isPackaged) {
-      mainWindow.webContents.openDevTools();
-    }
-
-    // Notify renderer if this is first run
-    if (isFirstRun) {
-      setTimeout(() => {
-        mainWindow.webContents.send('first-run');
-      }, 100);
-    }
-  });
-
-  mainWindow.on('closed', () => {
-    mainWindow = null;
-  });
-}
+// NOTE: attachSupervisorListeners() moved to WindowManager
+// NOTE: OAuth protocol and callback handling moved to OAuthHandlers
+// NOTE: createSplashWindow(), createSetupWindow(), createWindow() moved to WindowManager
 
 async function initializeApp() {
   console.log('Initializing SC Recorder...');
@@ -408,11 +97,6 @@ async function initializeApp() {
     }
 
     console.log('Configuration loaded successfully');
-
-    // Register hotkeys if configured
-    if (config.settings?.hotkeys) {
-      registerHotkeys(config.settings.hotkeys);
-    }
 
     // Check if OBS and FFmpeg binaries exist
     const localAppData = process.env.LOCALAPPDATA || process.env.APPDATA;
@@ -453,7 +137,7 @@ async function initializeApp() {
     supervisor = new SupervisorModule();
 
     // Attach event listeners (only once)
-    attachSupervisorListeners();
+    windowManager.attachSupervisorListeners();
 
     // Initialize supervisor with config that includes auto-start settings
     const supervisorConfig = {
@@ -472,6 +156,12 @@ async function initializeApp() {
       throw new Error('Supervisor initialization failed');
     }
 
+    // Register hotkeys AFTER supervisor is initialized
+    if (config.settings?.hotkeys) {
+      console.log('Registering hotkeys after supervisor initialization');
+      hotkeyManager.registerHotkeys(config.settings.hotkeys);
+    }
+
     return true;
   } catch (error) {
     console.error('Failed to initialize app:', error);
@@ -481,12 +171,10 @@ async function initializeApp() {
 
 // Check for pattern updates during initialization
 async function checkPatternUpdates() {
-  if (splashWindow) {
-    splashWindow.webContents.send('splash-progress', {
-      message: 'Checking for pattern updates...',
-      progress: 10
-    });
-  }
+  windowManager.sendSplashProgress({
+    message: 'Checking for pattern updates...',
+    progress: 10
+  });
 
   try {
     const updater = new PatternUpdater();
@@ -497,12 +185,10 @@ async function checkPatternUpdates() {
       if (updateInfo.incompatible) {
         console.error(`Cannot restore patterns: v${updateInfo.newVersion} incompatible - app supports v${updateInfo.supportedVersion}`);
 
-        if (splashWindow) {
-          splashWindow.webContents.send('splash-progress', {
-            message: `Pattern v${updateInfo.newVersion} incompatible - app supports v${updateInfo.supportedVersion}`,
-            progress: 15
-          });
-        }
+        windowManager.sendSplashProgress({
+          message: `Pattern v${updateInfo.newVersion} incompatible - app supports v${updateInfo.supportedVersion}`,
+          progress: 15
+        });
 
         // Show dialog warning after a delay
         setTimeout(() => {
@@ -519,12 +205,10 @@ async function checkPatternUpdates() {
         // Continue loading but patterns will be missing
       } else if (updateInfo.isMissing) {
 
-        if (splashWindow) {
-          splashWindow.webContents.send('splash-progress', {
-            message: `Downloading pattern file v${updateInfo.newVersion}...`,
-            progress: 15
-          });
-        }
+        windowManager.sendSplashProgress({
+          message: `Downloading pattern file v${updateInfo.newVersion}...`,
+          progress: 15
+        });
 
         const success = await updater.applyUpdate(updateInfo);
         if (success) {
@@ -535,12 +219,10 @@ async function checkPatternUpdates() {
         }
       } else {
 
-        if (splashWindow) {
-          splashWindow.webContents.send('splash-progress', {
-            message: `Updating patterns to v${updateInfo.newVersion}...`,
-            progress: 15
-          });
-        }
+        windowManager.sendSplashProgress({
+          message: `Updating patterns to v${updateInfo.newVersion}...`,
+          progress: 15
+        });
 
         const success = await updater.applyUpdate(updateInfo);
         if (success) {
@@ -556,19 +238,43 @@ async function checkPatternUpdates() {
     console.log('Pattern update check failed (non-blocking):', error.message);
   }
 
-  if (splashWindow) {
-    splashWindow.webContents.send('splash-progress', {
-      message: 'Loading configuration...',
-      progress: 20
-    });
-  }
+  windowManager.sendSplashProgress({
+    message: 'Loading configuration...',
+    progress: 20
+  });
 }
 
 app.whenReady().then(async () => {
-  // Register protocol handler for OAuth callbacks
-  registerProtocolHandler();
+  // Initialize WindowManager
+  windowManager = new WindowManager(() => supervisor, app.isPackaged);
 
-  await createSplashWindow();
+  // Initialize HotkeyManager
+  hotkeyManager = new HotkeyManager(() => supervisor, () => windowManager?.getMainWindow());
+
+  // Initialize RecordingHandlers
+  recordingHandlers = new RecordingHandlers(
+    () => supervisor,
+    () => windowManager?.getMainWindow(),
+    recordingStatsPromiseRef,
+    clearRecordingStatsLock
+  );
+  recordingHandlers.registerHandlers();
+
+  // Initialize UploadHandlers
+  uploadHandlers = new UploadHandlers(() => supervisor);
+  uploadHandlers.registerHandlers();
+
+  // Initialize OAuthHandlers
+  oauthHandlers = new OAuthHandlers(() => windowManager?.getMainWindow());
+  oauthHandlers.registerHandlers();
+  oauthHandlers.registerProtocolHandler();
+
+  // Initialize FileHandlers
+  fileHandlers = new FileHandlers(() => configManager, () => windowManager?.getMainWindow());
+  fileHandlers.registerHandlers();
+
+  await windowManager.createSplashWindow();
+  splashWindow = windowManager.getSplashWindow(); // Keep global reference for backward compatibility
 
   // Initialize config manager early to check auto-update setting
   configManager = new ConfigManager();
@@ -583,35 +289,29 @@ app.whenReady().then(async () => {
 
     // Set progress callback to update splash screen
     autoUpdater.setProgressCallback((progress, downloaded, total) => {
-      if (splashWindow && !splashWindow.isDestroyed()) {
-        const mb = (size) => (size / 1024 / 1024).toFixed(1);
-        splashWindow.webContents.send('splash-progress', {
-          message: `Downloading update... ${mb(downloaded)}MB / ${mb(total)}MB (${progress}%)`,
-          progress: 20 + (progress * 0.7) // Scale progress from 20% to 90%
-        });
-      }
+      const mb = (size) => (size / 1024 / 1024).toFixed(1);
+      windowManager.sendSplashProgress({
+        message: `Downloading update... ${mb(downloaded)}MB / ${mb(total)}MB (${progress}%)`,
+        progress: 20 + (progress * 0.7) // Scale progress from 20% to 90%
+      });
     });
 
     // Check for updates and prompt user if available
     const updateInfo = await autoUpdater.checkForUpdates();
 
     if (updateInfo.hasUpdate) {
-      if (splashWindow && !splashWindow.isDestroyed()) {
-        splashWindow.webContents.send('splash-progress', {
-          message: `Update available: v${updateInfo.latestVersion}`,
-          progress: 15
-        });
-      }
+      windowManager.sendSplashProgress({
+        message: `Update available: v${updateInfo.latestVersion}`,
+        progress: 15
+      });
 
       const shouldUpdate = await autoUpdater.promptUserForUpdate(updateInfo);
 
       if (shouldUpdate) {
-        if (splashWindow && !splashWindow.isDestroyed()) {
-          splashWindow.webContents.send('splash-progress', {
-            message: 'Preparing to install update...',
-            progress: 20
-          });
-        }
+        windowManager.sendSplashProgress({
+          message: 'Preparing to install update...',
+          progress: 20
+        });
 
         const success = await autoUpdater.performUpdate();
 
@@ -636,9 +336,16 @@ app.whenReady().then(async () => {
 
   // Show setup wizard if first run, otherwise main window
   if (isFirstRun) {
-    createSetupWindow();
+    windowManager.createSetupWindow();
+    setupWindow = windowManager.getSetupWindow(); // Keep global reference for backward compatibility
   } else {
-    createWindow();
+    windowManager.createMainWindow();
+    mainWindow = windowManager.getMainWindow(); // Keep global reference for backward compatibility
+
+    // Notify renderer if this is first run
+    if (isFirstRun) {
+      windowManager.sendFirstRunMessage();
+    }
   }
 });
 
@@ -651,7 +358,9 @@ app.on('window-all-closed', () => {
 // Handle protocol for Windows
 app.on('open-url', (event, url) => {
   event.preventDefault();
-  handleOAuthCallback(url);
+  if (oauthHandlers) {
+    oauthHandlers.handleOAuthCallback(url);
+  }
 });
 
 // Handle protocol for Windows when app is already running
@@ -669,8 +378,8 @@ if (!gotTheLock) {
 
     // Check for protocol URL in command line
     const url = commandLine.find(arg => arg.startsWith('sc-recorder://'));
-    if (url) {
-      handleOAuthCallback(url);
+    if (url && oauthHandlers) {
+      oauthHandlers.handleOAuthCallback(url);
     }
   });
 }
@@ -690,7 +399,9 @@ app.on('before-quit', async (event) => {
   }
 
   // Stop uiohook if running
-  stopUiohook();
+  if (hotkeyManager) {
+    hotkeyManager.stopUiohook();
+  }
 
   if (supervisor) {
     await supervisor.shutdown();
@@ -701,649 +412,36 @@ app.on('before-quit', async (event) => {
 
 app.on('activate', () => {
   if (mainWindow === null) {
-    createWindow();
+    windowManager.createMainWindow();
+    mainWindow = windowManager.getMainWindow();
   }
 });
 
-// Hotkey management with uiohook-napi
-const { uIOhook, UiohookKey } = require('uiohook-napi');
-
-let registeredHotkeys = {};
-let currentKeyState = new Set();
-
-// Convert string hotkey format to uiohook format
-function parseHotkey(hotkeyString) {
-  if (!hotkeyString) return null;
-
-  const parts = hotkeyString.split('+').map(p => p.trim().toLowerCase());
-  const modifiers = [];
-  let key = null;
-
-  for (const part of parts) {
-    switch(part) {
-      case 'ctrl':
-      case 'control':
-        modifiers.push('ctrl');
-        break;
-      case 'alt':
-        modifiers.push('alt');
-        break;
-      case 'shift':
-        modifiers.push('shift');
-        break;
-      case 'cmd':
-      case 'command':
-      case 'super':
-      case 'meta':
-        modifiers.push('meta');
-        break;
-      default:
-        // Map key names to uiohook key codes
-        key = getUiohookKeyCode(part);
-    }
-  }
-
-  return { modifiers, key };
-}
-
-// Map key names to uiohook key codes
-function getUiohookKeyCode(keyName) {
-  const keyMap = {
-    'a': UiohookKey.A,
-    'b': UiohookKey.B,
-    'c': UiohookKey.C,
-    'd': UiohookKey.D,
-    'e': UiohookKey.E,
-    'f': UiohookKey.F,
-    'g': UiohookKey.G,
-    'h': UiohookKey.H,
-    'i': UiohookKey.I,
-    'j': UiohookKey.J,
-    'k': UiohookKey.K,
-    'l': UiohookKey.L,
-    'm': UiohookKey.M,
-    'n': UiohookKey.N,
-    'o': UiohookKey.O,
-    'p': UiohookKey.P,
-    'q': UiohookKey.Q,
-    'r': UiohookKey.R,
-    's': UiohookKey.S,
-    't': UiohookKey.T,
-    'u': UiohookKey.U,
-    'v': UiohookKey.V,
-    'w': UiohookKey.W,
-    'x': UiohookKey.X,
-    'y': UiohookKey.Y,
-    'z': UiohookKey.Z,
-    '0': UiohookKey.Num0,
-    '1': UiohookKey.Num1,
-    '2': UiohookKey.Num2,
-    '3': UiohookKey.Num3,
-    '4': UiohookKey.Num4,
-    '5': UiohookKey.Num5,
-    '6': UiohookKey.Num6,
-    '7': UiohookKey.Num7,
-    '8': UiohookKey.Num8,
-    '9': UiohookKey.Num9,
-    'f1': UiohookKey.F1,
-    'f2': UiohookKey.F2,
-    'f3': UiohookKey.F3,
-    'f4': UiohookKey.F4,
-    'f5': UiohookKey.F5,
-    'f6': UiohookKey.F6,
-    'f7': UiohookKey.F7,
-    'f8': UiohookKey.F8,
-    'f9': UiohookKey.F9,
-    'f10': UiohookKey.F10,
-    'f11': UiohookKey.F11,
-    'f12': UiohookKey.F12,
-    'space': UiohookKey.Space,
-    'enter': UiohookKey.Enter,
-    'tab': UiohookKey.Tab,
-    'escape': UiohookKey.Escape,
-    'backspace': UiohookKey.Backspace,
-    'delete': UiohookKey.Delete,
-    'home': UiohookKey.Home,
-    'end': UiohookKey.End,
-    'pageup': UiohookKey.PageUp,
-    'pagedown': UiohookKey.PageDown,
-    'up': UiohookKey.Up,
-    'down': UiohookKey.Down,
-    'left': UiohookKey.Left,
-    'right': UiohookKey.Right,
-    'insert': UiohookKey.Insert,
-    // Add missing special keys
-    '\\': UiohookKey.Backslash,
-    'backslash': UiohookKey.Backslash,
-    'capslock': UiohookKey.CapsLock,
-    'caps': UiohookKey.CapsLock,
-    '/': UiohookKey.Slash,
-    'slash': UiohookKey.Slash,
-    '.': UiohookKey.Period,
-    'period': UiohookKey.Period,
-    ',': UiohookKey.Comma,
-    'comma': UiohookKey.Comma,
-    ';': UiohookKey.Semicolon,
-    'semicolon': UiohookKey.Semicolon,
-    "'": UiohookKey.Quote,
-    'quote': UiohookKey.Quote,
-    '[': UiohookKey.BracketLeft,
-    ']': UiohookKey.BracketRight,
-    '-': UiohookKey.Minus,
-    'minus': UiohookKey.Minus,
-    '=': UiohookKey.Equal,
-    'equal': UiohookKey.Equal,
-    'equals': UiohookKey.Equal,
-    '`': UiohookKey.Grave,
-    'grave': UiohookKey.Grave
-  };
-
-  return keyMap[keyName.toLowerCase()] || null;
-}
-
-// Check if current key state matches a hotkey
-function checkHotkey(parsedHotkey, event) {
-  if (!parsedHotkey || !parsedHotkey.key) return false;
-
-  // Check if the main key matches
-  if (event.keycode !== parsedHotkey.key) return false;
-
-  // Check modifiers - use event properties directly as they're more reliable
-  const hasCtrl = event.ctrlKey;
-  const hasAlt = event.altKey;
-  const hasShift = event.shiftKey;
-  const hasMeta = event.metaKey;
-
-
-  // Check required modifiers are pressed
-  for (const mod of parsedHotkey.modifiers) {
-    if (mod === 'ctrl' && !hasCtrl) return false;
-    if (mod === 'alt' && !hasAlt) return false;
-    if (mod === 'shift' && !hasShift) return false;
-    if (mod === 'meta' && !hasMeta) return false;
-  }
-
-  // Only check for extra modifiers if we have no modifiers defined
-  // This allows flexibility for system-level combinations
-  if (parsedHotkey.modifiers.length === 0) {
-    // For standalone keys, we might want to allow shift for capitalization
-    // but not ctrl/alt/meta as those are typically intentional modifiers
-    if (hasCtrl || hasAlt || hasMeta) return false;
-  }
-
-  return true;
-}
-
-// Initialize uiohook
-let uiohookStarted = false;
-
-function startUiohook() {
-  if (uiohookStarted) return;
-
-  try {
-    // Track key states
-    uIOhook.on('keydown', (event) => {
-      currentKeyState.add(event.keycode);
-
-
-      // Check registered hotkeys
-      for (const [action, hotkeyData] of Object.entries(registeredHotkeys)) {
-        if (checkHotkey(hotkeyData.parsed, event)) {
-          if (hotkeyData.callback) {
-            hotkeyData.callback();
-          }
-        }
-      }
-    });
-
-    uIOhook.on('keyup', (event) => {
-      currentKeyState.delete(event.keycode);
-    });
-
-    uIOhook.start();
-    uiohookStarted = true;
-  } catch (error) {
-    console.error('Failed to start uIOhook:', error);
-  }
-}
-
-function stopUiohook() {
-  if (!uiohookStarted) return;
-
-  try {
-    uIOhook.stop();
-    uiohookStarted = false;
-    currentKeyState.clear();
-  } catch (error) {
-    console.error('Failed to stop uIOhook:', error);
-  }
-}
-
-function registerHotkeys(hotkeys) {
-  // Clear existing hotkeys
-  registeredHotkeys = {};
-
-  // Start uiohook if not already started
-  startUiohook();
-
-  // Register new hotkeys
-  if (hotkeys?.startStop) {
-    const parsed = parseHotkey(hotkeys.startStop);
-    if (parsed) {
-      registeredHotkeys.startStop = {
-        original: hotkeys.startStop,
-        parsed: parsed,
-        callback: () => {
-          if (supervisor) {
-            supervisor.toggleRecording();
-          }
-        }
-      };
-    }
-  }
-
-  if (hotkeys?.split) {
-    const parsed = parseHotkey(hotkeys.split);
-    if (parsed) {
-      registeredHotkeys.split = {
-        original: hotkeys.split,
-        parsed: parsed,
-        callback: () => {
-          if (supervisor) {
-            supervisor.splitRecording();
-          }
-        }
-      };
-    }
-  }
-
-  if (hotkeys?.markEvent) {
-    const parsed = parseHotkey(hotkeys.markEvent);
-    if (parsed) {
-      registeredHotkeys.markEvent = {
-        original: hotkeys.markEvent,
-        parsed: parsed,
-        callback: () => {
-          if (supervisor) {
-            // Create a manual event
-            const manualEvent = {
-              type: 'manual',
-              subtype: 'user_marked',
-              name: 'Manual Event',
-              message: 'User marked event - click to edit description',
-              severity: 'medium',
-              category: 'manual',
-              data: {
-                userNote: 'Click to add description',
-                editable: true,
-                markedAt: new Date().toISOString()
-              }
-            };
-            supervisor.addManualEvent(manualEvent);
-
-            // Notify the UI
-            if (mainWindow && !mainWindow.isDestroyed()) {
-              mainWindow.webContents.send('manual-event-created', manualEvent);
-            }
-          }
-        }
-      };
-    }
-  }
-
-  return registeredHotkeys;
-}
+// NOTE: Hotkey management moved to HotkeyManager
+// NOTE: Recording handlers (get-status, start/stop/split-recording, mark-manual-event,
+//       get-recording-stats, event capture) moved to RecordingHandlers
+// NOTE: Upload handlers (upload:* - all account management and queue operations) moved to UploadHandlers
+// NOTE: OAuth handlers (oauth:*, protocol registration, callback handling) moved to OAuthHandlers
+// NOTE: File handlers (show-open-dialog, browse-folder, select-folder, file-exists, read-file,
+//       get-file-stats, open-folder, open-recording-folder, get-recordings-list, move-recording) moved to FileHandlers
 
 // IPC handlers
 ipcMain.handle('get-app-version', () => {
   return app.getVersion();
 });
 
-ipcMain.handle('get-status', () => {
-  if (supervisor) {
-    return supervisor.getState();
+
+/**
+ * Clear recording stats lock
+ * Called during state transitions (OBS restart, recording stop) to ensure
+ * fresh listener creation on next stats request
+ */
+function clearRecordingStatsLock() {
+  if (recordingStatsPromiseRef.value) {
+    console.log('[Cleanup] Clearing recording stats lock');
+    recordingStatsPromiseRef.value = null;
   }
-
-  return {
-    supervisor: 'not-initialized',
-    obs: { process: 'stopped', websocket: 'disconnected' },
-    recording: { active: false },
-    starCitizen: { running: false }
-  };
-});
-
-ipcMain.handle('start-recording', async () => {
-  if (supervisor) {
-    await supervisor.startRecording();
-    return { success: true };
-  }
-  return { success: false, error: 'Supervisor not initialized' };
-});
-
-ipcMain.handle('stop-recording', async () => {
-  if (supervisor) {
-    await supervisor.stopRecording();
-    return { success: true };
-  }
-  return { success: false, error: 'Supervisor not initialized' };
-});
-
-ipcMain.handle('split-recording', async () => {
-  if (supervisor) {
-    await supervisor.splitRecording();
-    return { success: true };
-  }
-  return { success: false, error: 'Supervisor not initialized' };
-});
-
-ipcMain.handle('mark-manual-event', async () => {
-  if (supervisor) {
-    const manualEvent = {
-      type: 'manual',
-      subtype: 'user_marked',
-      name: 'Manual Event',
-      message: 'User marked event - click to edit description',
-      severity: 'medium',
-      category: 'manual',
-      data: {
-        userNote: 'Click to add description',
-        editable: true,
-        markedAt: new Date().toISOString()
-      }
-    };
-    supervisor.addManualEvent(manualEvent);
-    return { success: true, event: manualEvent };
-  }
-  return { success: false, error: 'Supervisor not initialized' };
-});
-
-// Upload account management handlers
-ipcMain.handle('upload:add-account', async (event, data) => {
-  if (supervisor) {
-    try {
-      const result = await supervisor.addUploadAccount(data);
-      return result;
-    } catch (error) {
-      return { success: false, error: error.message };
-    }
-  }
-  return { success: false, error: 'Supervisor not initialized' };
-});
-
-ipcMain.handle('upload:update-account', async (event, data) => {
-  if (supervisor) {
-    try {
-      const result = await supervisor.updateUploadAccount(data);
-      return result;
-    } catch (error) {
-      return { success: false, error: error.message };
-    }
-  }
-  return { success: false, error: 'Supervisor not initialized' };
-});
-
-ipcMain.handle('upload:delete-account', async (event, data) => {
-  if (supervisor) {
-    try {
-      const result = await supervisor.deleteUploadAccount(data);
-      return result;
-    } catch (error) {
-      return { success: false, error: error.message };
-    }
-  }
-  return { success: false, error: 'Supervisor not initialized' };
-});
-
-ipcMain.handle('upload:list-accounts', async (event, data) => {
-  if (supervisor) {
-    try {
-      const accounts = await supervisor.listUploadAccounts(data);
-      return { success: true, accounts };
-    } catch (error) {
-      return { success: false, error: error.message };
-    }
-  }
-  return { success: false, error: 'Supervisor not initialized' };
-});
-
-ipcMain.handle('upload:test-account', async (event, data) => {
-  if (supervisor) {
-    try {
-      const result = await supervisor.testUploadAccount(data);
-      return result;
-    } catch (error) {
-      return { success: false, error: error.message };
-    }
-  }
-  return { success: false, error: 'Supervisor not initialized' };
-});
-
-// Upload operation handlers
-ipcMain.handle('upload:upload-file', async (event, data) => {
-  if (supervisor) {
-    try {
-      const result = await supervisor.uploadFile(data);
-      return result;
-    } catch (error) {
-      return { success: false, error: error.message };
-    }
-  }
-  return { success: false, error: 'Supervisor not initialized' };
-});
-
-ipcMain.handle('upload:cancel-upload', async (event, data) => {
-  if (supervisor) {
-    try {
-      const result = await supervisor.cancelUpload(data);
-      return result;
-    } catch (error) {
-      return { success: false, error: error.message };
-    }
-  }
-  return { success: false, error: 'Supervisor not initialized' };
-});
-
-ipcMain.handle('upload:clear-completed', async () => {
-  if (supervisor) {
-    try {
-      const result = await supervisor.clearCompletedUploads();
-      return result;
-    } catch (error) {
-      return { success: false, error: error.message };
-    }
-  }
-  return { success: false, error: 'Supervisor not initialized' };
-});
-
-ipcMain.handle('upload:remove-from-queue', async (event, data) => {
-  if (supervisor) {
-    try {
-      const result = await supervisor.removeFromQueue(data);
-      return result;
-    } catch (error) {
-      return { success: false, error: error.message };
-    }
-  }
-  return { success: false, error: 'Supervisor not initialized' };
-});
-
-ipcMain.handle('upload:remove-completed', async (event, data) => {
-  if (supervisor) {
-    try {
-      const result = await supervisor.removeCompletedUpload(data);
-      return result;
-    } catch (error) {
-      return { success: false, error: error.message };
-    }
-  }
-  return { success: false, error: 'Supervisor not initialized' };
-});
-
-ipcMain.handle('upload:start-queue', async () => {
-  if (supervisor) {
-    try {
-      const result = await supervisor.startUploadQueue();
-      return result;
-    } catch (error) {
-      return { success: false, error: error.message };
-    }
-  }
-  return { success: false, error: 'Supervisor not initialized' };
-});
-
-ipcMain.handle('upload:pause-queue', async () => {
-  if (supervisor) {
-    try {
-      const result = await supervisor.pauseUploadQueue();
-      return result;
-    } catch (error) {
-      return { success: false, error: error.message };
-    }
-  }
-  return { success: false, error: 'Supervisor not initialized' };
-});
-
-ipcMain.handle('upload:get-queue-status', async () => {
-  if (supervisor) {
-    try {
-      const result = await supervisor.getUploadQueueStatus();
-      return result;
-    } catch (error) {
-      return { success: false, error: error.message };
-    }
-  }
-  return { success: false, error: 'Supervisor not initialized' };
-});
-
-ipcMain.handle('upload:get-status', async () => {
-  if (supervisor) {
-    try {
-      const status = await supervisor.getUploadStatus();
-      return { success: true, status };
-    } catch (error) {
-      return { success: false, error: error.message };
-    }
-  }
-  return { success: false, error: 'Supervisor not initialized' };
-});
-
-ipcMain.handle('upload:get-state', async () => {
-  if (supervisor) {
-    try {
-      const state = await supervisor.getUploadState();
-      return { success: true, state };
-    } catch (error) {
-      return { success: false, error: error.message };
-    }
-  }
-  return { success: false, error: 'Supervisor not initialized' };
-});
-
-// OAuth Authentication Handlers
-const OAuthPKCE = require('./lib/oauth-pkce');
-const oauthConfigLoader = require('./lib/oauth-config-loader');
-let oauthHandler = null;
-
-ipcMain.handle('oauth:authenticate', async (event, service) => {
-  try {
-    // Use OAuth proxy server for authentication
-    const authUrl = `${OAUTH_PROXY_URL}/auth/${service === 'google' ? 'google' : 'twitch'}`;
-
-
-    // Open the OAuth URL in the default browser
-    const { shell } = require('electron');
-    await shell.openExternal(authUrl);
-
-    // Return a pending status - the actual tokens will come via the protocol handler
-    return {
-      success: true,
-      pending: true,
-      message: 'Authentication window opened. Please complete login in your browser.'
-    };
-  } catch (error) {
-    console.error(`[OAuth] Authentication failed for ${service}:`, error);
-    return { success: false, error: error.message };
-  }
-});
-
-ipcMain.handle('oauth:refresh-token', async (event, { refreshToken, service }) => {
-  try {
-    // Use OAuth proxy server for token refresh
-    const response = await fetch(`${OAUTH_PROXY_URL}/auth/refresh`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        service: service,
-        refresh_token: refreshToken
-      })
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || 'Token refresh failed');
-    }
-
-    const tokens = await response.json();
-    return { success: true, tokens };
-  } catch (error) {
-    console.error('[OAuth] Token refresh failed:', error);
-    return { success: false, error: error.message };
-  }
-});
-
-ipcMain.handle('oauth:check-config', async () => {
-  // OAuth is now handled by the proxy server
-  return {
-    configured: true,
-    twitch: true,
-    google: true,
-    proxyUrl: OAUTH_PROXY_URL
-  };
-});
-
-ipcMain.handle('get-recording-stats', async () => {
-  if (!supervisor) {
-    return null;
-  }
-
-  // If there's already a pending request, return that promise instead of creating a new one
-  if (recordingStatsPromise) {
-    return recordingStatsPromise;
-  }
-
-  recordingStatsPromise = new Promise((resolve) => {
-    let resolved = false;
-    let timeoutHandle;
-
-    // Set up one-time listener for the response
-    const handler = (data) => {
-      if (!resolved) {
-        resolved = true;
-        clearTimeout(timeoutHandle);
-        supervisor.removeListener('recording-stats', handler);
-        recordingStatsPromise = null; // Clear the lock
-        resolve(data);
-      }
-    };
-
-    supervisor.on('recording-stats', handler);
-    supervisor.getRecordingStats();
-
-    // Timeout after 2 seconds
-    timeoutHandle = setTimeout(() => {
-      if (!resolved) {
-        resolved = true;
-        supervisor.removeListener('recording-stats', handler);
-        recordingStatsPromise = null; // Clear the lock
-        resolve(null);
-      }
-    }, 2000);
-  });
-
-  return recordingStatsPromise;
-});
+}
 
 // Keep detector instance alive during setup wizard
 let setupDetector = null;
@@ -1418,18 +516,6 @@ ipcMain.handle('detect-encoders', async (event, forceRescan = false) => {
       }
     };
   }
-});
-
-// Handle folder selection dialog
-ipcMain.handle('select-folder', async (event, options) => {
-  const defaultOptions = {
-    properties: ['openDirectory', 'createDirectory']
-  };
-
-  const dialogOptions = { ...defaultOptions, ...options };
-
-  // Show dialog and return result
-  return dialog.showOpenDialog(setupWindow || mainWindow, dialogOptions);
 });
 
 // Get all available displays
@@ -2600,78 +1686,6 @@ ipcMain.handle('export-video-fluent', async (event, options) => {
   }
 });
 
-ipcMain.handle('open-folder', async (event, folderPath) => {
-  const { shell } = require('electron');
-  try {
-    shell.openPath(folderPath);
-    return { success: true };
-  } catch (error) {
-    console.error('Failed to open folder:', error);
-    return { success: false, error: error.message };
-  }
-});
-
-ipcMain.handle('get-file-stats', async (event, filePath) => {
-  const fs = require('fs').promises;
-  try {
-    const stats = await fs.stat(filePath);
-    return {
-      success: true,
-      size: stats.size,
-      created: stats.birthtime,
-      modified: stats.mtime
-    };
-  } catch (error) {
-    console.error('Failed to get file stats:', error);
-    return { success: false, error: error.message };
-  }
-});
-
-// Move recording from recordings folder to saved folder
-ipcMain.handle('move-recording', async (event, recordingPath) => {
-  const fs = require('fs').promises;
-  const path = require('path');
-
-  try {
-    console.log('Moving recording to saved folder:', recordingPath);
-
-    // Get the base recording folder from config
-    const config = configManager.get();
-    const basePath = config?.settings?.recording?.outputPath || path.join(app.getPath('videos'), 'SC-Recorder');
-
-    // Get filename
-    const filename = path.basename(recordingPath);
-    const baseName = path.basename(recordingPath, path.extname(recordingPath));
-
-    // Determine source and destination folders
-    const sourceFolder = path.dirname(recordingPath);
-    const savedFolder = path.join(basePath, 'saved');
-
-    // Ensure saved folder exists
-    await fs.mkdir(savedFolder, { recursive: true });
-
-    // Move video file
-    const destVideoPath = path.join(savedFolder, filename);
-    await fs.rename(recordingPath, destVideoPath);
-
-    // Also move JSON file if it exists
-    const jsonSourcePath = path.join(sourceFolder, `${baseName}.json`);
-    let newEventsPath = null;
-    try {
-      await fs.access(jsonSourcePath);
-      const jsonDestPath = path.join(savedFolder, `${baseName}.json`);
-      await fs.rename(jsonSourcePath, jsonDestPath);
-      newEventsPath = jsonDestPath;
-    } catch (error) {
-      // JSON file doesn't exist or couldn't be moved
-    }
-
-    return { success: true, newPath: destVideoPath, newEventsPath };
-  } catch (error) {
-    console.error('Failed to move recording:', error);
-    return { success: false, error: error.message };
-  }
-});
 
 ipcMain.handle('save-configuration', async (event, configuration) => {
   try {
@@ -2843,7 +1857,7 @@ ipcMain.on('setup-complete', async () => {
   supervisor = new SupervisorModule();
 
   // Attach event listeners (only once, even after setup)
-  attachSupervisorListeners();
+  windowManager.attachSupervisorListeners();
 
   // Initialize supervisor with config that includes auto-start settings
   const supervisorConfig = {
@@ -2859,7 +1873,8 @@ ipcMain.on('setup-complete', async () => {
   await supervisor.initialize(supervisorConfig);
 
   // Create main window
-  createWindow();
+  windowManager.createMainWindow();
+  mainWindow = windowManager.getMainWindow(); // Keep global reference for backward compatibility
 });
 
 // Combined dependencies download handler (OBS + FFmpeg)
@@ -3152,7 +2167,7 @@ ipcMain.handle('update-config', async (event, settings) => {
 
     // Register hotkeys if they changed
     if (settings.hotkeys) {
-      registerHotkeys(settings.hotkeys);
+      hotkeyManager.registerHotkeys(settings.hotkeys);
     }
 
     // Update recording options in supervisor if they changed
@@ -3161,6 +2176,7 @@ ipcMain.handle('update-config', async (event, settings) => {
     }
 
     // Check if we need to regenerate templates (if recording settings changed)
+    // Don't regenerate for hotkey-only changes
     const needsRegeneration = settings.resolution || settings.recording || settings.performance;
 
     if (needsRegeneration && supervisor) {
@@ -3168,6 +2184,7 @@ ipcMain.handle('update-config', async (event, settings) => {
 
       // Step 1: Stop OBS via supervisor
       await supervisor.stopOBS();
+      clearRecordingStatsLock(); // Clear lock when OBS stops
 
       // Wait a bit for OBS to fully shut down
       await new Promise(resolve => setTimeout(resolve, 3000));
@@ -3245,6 +2262,7 @@ ipcMain.handle('regenerate-templates', async (event, config) => {
     // Step 1: Stop OBS via supervisor
     if (supervisor) {
       await supervisor.stopOBS();
+      clearRecordingStatsLock(); // Clear lock when OBS stops
 
       // Wait a bit for OBS to fully shut down
       await new Promise(resolve => setTimeout(resolve, 3000));
@@ -3464,97 +2482,6 @@ function downloadFile(url, dest, progressCallback) {
   });
 }
 
-// Handler to open recording folder
-ipcMain.handle('open-recording-folder', async () => {
-  try {
-    const config = await configManager.load();
-    const recordingPath = config?.settings?.recording?.outputPath ||
-      path.join(process.env.USERPROFILE, 'Videos', 'SC-Recorder');
-
-    // Ensure folder exists
-    await fs.mkdir(recordingPath, { recursive: true });
-
-    // Open folder in file explorer
-    require('electron').shell.openPath(recordingPath);
-
-    return { success: true, path: recordingPath };
-  } catch (error) {
-    console.error('Error opening recording folder:', error);
-    return { success: false, error: error.message };
-  }
-});
-
-// Get event capture status
-ipcMain.handle('get-event-capture-status', () => {
-  if (supervisor && supervisor.eventCapture) {
-    return supervisor.eventCapture.getStatus();
-  }
-  return {
-    recordingActive: false,
-    eventCount: 0,
-    categories: {}
-  };
-});
-
-// Get captured events
-ipcMain.handle('get-captured-events', () => {
-  if (supervisor && supervisor.eventCapture) {
-    return supervisor.eventCapture.getAllEvents();
-  }
-  return [];
-});
-
-// Save events manually
-ipcMain.handle('save-events', async () => {
-  if (supervisor && supervisor.eventCapture) {
-    const result = await supervisor.eventCapture.saveEvents();
-    return result;
-  }
-  return { success: false, error: 'Event capture not available' };
-});
-
-// Show open dialog for file selection
-ipcMain.handle('show-open-dialog', async (event, options) => {
-  const { dialog } = require('electron');
-  return dialog.showOpenDialog(mainWindow, options);
-});
-
-// Browse for folder selection
-ipcMain.handle('browse-folder', async (event, options) => {
-  const { dialog } = require('electron');
-  const result = await dialog.showOpenDialog(mainWindow, {
-    title: options.title || 'Select Folder',
-    defaultPath: options.defaultPath || '',
-    properties: ['openDirectory', 'createDirectory']
-  });
-
-  if (!result.canceled && result.filePaths.length > 0) {
-    return { success: true, path: result.filePaths[0] };
-  }
-  return { success: false };
-});
-
-// Check if file exists
-ipcMain.handle('file-exists', async (event, filePath) => {
-  try {
-    await fs.access(filePath);
-    return true;
-  } catch {
-    return false;
-  }
-});
-
-// Read file content
-ipcMain.handle('read-file', async (event, filePath) => {
-  try {
-    const content = await fs.readFile(filePath, 'utf8');
-    return content;
-  } catch (error) {
-    console.error('Failed to read file:', error);
-    throw error;
-  }
-});
-
 // Save default filter template for recording notifications
 ipcMain.handle('save-default-filter', async (event, filterData) => {
   try {
@@ -3654,86 +2581,3 @@ ipcMain.handle('save-filter-templates', async (event, templates) => {
   }
 });
 
-// Get list of recordings with matching JSON files
-ipcMain.handle('get-recordings-list', async (event, folder = 'recordings') => {
-  try {
-    const config = configManager.get();
-    const basePath = config?.settings?.recording?.outputPath || path.join(app.getPath('videos'), 'SC-Recorder');
-
-    // Append the requested folder (recordings, saved, or edited)
-    const recordingPath = path.join(basePath, folder);
-
-
-    // Ensure directory exists
-    try {
-      await fs.access(recordingPath);
-    } catch (error) {
-      return [];
-    }
-
-    // Get all files in the directory
-    const files = await fs.readdir(recordingPath);
-
-    // Filter for video files
-    const videoExtensions = ['.mp4', '.mkv', '.avi', '.webm', '.mov'];
-    const videoFiles = files.filter(file => {
-      const ext = path.extname(file).toLowerCase();
-      return videoExtensions.includes(ext);
-    });
-
-    // Build list with metadata
-    const recordings = [];
-    for (const videoFile of videoFiles) {
-      const videoPath = path.join(recordingPath, videoFile);
-      const baseName = path.basename(videoFile, path.extname(videoFile));
-      const jsonPath = path.join(recordingPath, `${baseName}.json`);
-
-      try {
-        // Get video file stats
-        const stats = await fs.stat(videoPath);
-
-        // Check for matching JSON file
-        let hasEvents = false;
-        let eventCount = 0;
-        try {
-          await fs.access(jsonPath);
-          hasEvents = true;
-
-          // Try to read event count
-          try {
-            const jsonContent = await fs.readFile(jsonPath, 'utf8');
-            const eventData = JSON.parse(jsonContent);
-            if (Array.isArray(eventData.events)) {
-              eventCount = eventData.events.length;
-            }
-          } catch (e) {
-            console.error(`Failed to parse JSON for ${baseName}:`, e);
-          }
-        } catch {
-          // No JSON file
-        }
-
-        recordings.push({
-          name: videoFile,
-          path: videoPath,
-          jsonPath: hasEvents ? jsonPath : null,
-          hasEvents,
-          eventCount,
-          size: stats.size,
-          modified: stats.mtime,
-          created: stats.birthtime || stats.ctime
-        });
-      } catch (error) {
-        console.error(`Failed to get stats for ${videoFile}:`, error);
-      }
-    }
-
-    // Sort by modified date, newest first
-    recordings.sort((a, b) => b.modified - a.modified);
-
-    return recordings;
-  } catch (error) {
-    console.error('Failed to get recordings list:', error);
-    return [];
-  }
-});

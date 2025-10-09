@@ -1,6 +1,6 @@
 {
   "name": "SC Recorder Log Patterns",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Star Citizen log parsing patterns for SC Recorder",
   "transforms": {
     "parseTimestamp": {

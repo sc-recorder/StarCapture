@@ -1,6 +1,6 @@
 # StarCapture Source Distribution
 
-Version 1.1.6
+Version 1.1.8
 
 ## Requirements
 
@@ -34,7 +34,7 @@ npm run dist:win
 npm run portable
 ```
 
-The executable will be in dist/StarCapture-v1.1.6/
+The executable will be in dist/StarCapture-v1.1.8/
 
 ## License
 
@@ -42,4 +42,4 @@ GPL v3 - See LICENSE file for details
 
 ## Support
 
-Report issues at: https://github.com/sc-recordder/starcapture/issues
+Report issues at: https://github.com/sc-recorder/starcapture/issues

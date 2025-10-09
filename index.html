@@ -1674,12 +1674,19 @@
 
             // Update OBS and WebSocket status
             if (state.obs) {
-                // OBS Process status
+                // OBS Process status (also considers game capture status)
                 const obsElement = document.getElementById('obs-status');
                 if (obsElement) {
                     let obsClass = 'status-item';
                     if (state.obs.process === 'running') {
-                        obsClass = 'status-item active';
+                        // Check game capture status if OBS is running
+                        if (state.obs.gameCaptureStatus === 'warning') {
+                            obsClass = 'status-item warning';
+                        } else if (state.obs.gameCaptureStatus === 'error') {
+                            obsClass = 'status-item error';
+                        } else {
+                            obsClass = 'status-item active';
+                        }
                     } else if (state.obs.process === 'starting') {
                         obsClass = 'status-item warning';
                     } else if (state.obs.process === 'error') {
@@ -1711,6 +1718,15 @@
                     let scClass = 'status-item';
                     if (state.starCitizen.running) {
                         scClass = 'status-item active';
+
+                        // Log if detected via log activity (for troubleshooting)
+                        if (state.starCitizen.detectedViaLog && !window.logDetectionLogged) {
+                            console.log('ℹ️ Star Citizen detected via log file activity (process detection may be blocked)');
+                            window.logDetectionLogged = true;
+                        } else if (!state.starCitizen.detectedViaLog && window.logDetectionLogged) {
+                            console.log('✓ Star Citizen process detection working normally');
+                            window.logDetectionLogged = false;
+                        }
                     }
                     scElement.className = scClass;
                 }
@@ -1767,17 +1783,19 @@
             // Check if system is ready (same conditions as status card)
             const obsReady = state.obs?.process === "running";
             const websocketReady = state.obs?.websocket === "connected";
+            const gameCaptureReady = state.obs?.gameCaptureStatus === "ok";
             const starCitizenReady = state.starCitizen?.running === true;
             const logMonitorReady = state.starCitizen?.logActive === true;
 
-            // Update global system ready status - all systems must be ready including log monitor
-            const newSystemReady = obsReady && websocketReady && starCitizenReady && logMonitorReady;
+            // Update global system ready status - all systems must be ready including log monitor and game capture
+            const newSystemReady = obsReady && websocketReady && gameCaptureReady && starCitizenReady && logMonitorReady;
 
             // Only log when system ready state changes (not on every status update)
             if (window.systemReady !== newSystemReady) {
                 console.log("System ready:", newSystemReady, {
                     obs: obsReady,
                     websocket: websocketReady,
+                    gameCapture: gameCaptureReady,
                     starCitizen: starCitizenReady,
                     logMonitor: logMonitorReady
                 });
