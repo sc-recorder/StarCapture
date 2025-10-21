@@ -391,6 +391,9 @@ class NewSettingsManager {
             if (this.config.settings.hotkeys.markEvent) {
                 document.getElementById('hotkey-mark-event').value = this.config.settings.hotkeys.markEvent;
             }
+            if (this.config.settings.hotkeys.screenshot) {
+                document.getElementById('hotkey-screenshot').value = this.config.settings.hotkeys.screenshot;
+            }
         }
 
         // Load auto-update setting
@@ -685,7 +688,8 @@ class NewSettingsManager {
             hotkeys: {
                 startStop: document.getElementById('hotkey-start-stop').value || '',
                 split: document.getElementById('hotkey-split').value || '',
-                markEvent: document.getElementById('hotkey-mark-event').value || ''
+                markEvent: document.getElementById('hotkey-mark-event').value || '',
+                screenshot: document.getElementById('hotkey-screenshot').value || ''
             },
             recordingOptions: {
                 autoStartRecording: document.getElementById('auto-start-recording').checked,

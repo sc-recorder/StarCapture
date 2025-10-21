@@ -1727,10 +1727,10 @@ ipcMain.handle('save-configuration', async (event, configuration) => {
     if (configuration.recordingFolder) {
       config.settings.recording.outputPath = configuration.recordingFolder;
 
-      // Create the 3 subfolders: recordings, saved, edited
+      // Create the 4 subfolders: recordings, saved, edited, screenshots
       const fs = require('fs').promises;
       const path = require('path');
-      const subfolders = ['recordings', 'saved', 'edited'];
+      const subfolders = ['recordings', 'saved', 'edited', 'screenshots'];
 
       for (const subfolder of subfolders) {
         const folderPath = path.join(configuration.recordingFolder, subfolder);
@@ -2150,7 +2150,7 @@ ipcMain.handle('update-config', async (event, settings) => {
     if (settings.recording && settings.recording.outputPath) {
       const fs = require('fs').promises;
       const path = require('path');
-      const subfolders = ['recordings', 'saved', 'edited'];
+      const subfolders = ['recordings', 'saved', 'edited', 'screenshots'];
 
       console.log('Recording output path changed, creating folder structure...');
 
